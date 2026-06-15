@@ -16,6 +16,7 @@ export interface Student {
   reg_number: string;
   image_paths: string[];
   class_name?: string;
+  created_at?: string;
 }
 
 export interface StudentsListResponse {

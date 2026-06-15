@@ -481,6 +481,9 @@ export default function StudentsPage() {
 
   // ── Modal state ──
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [activeStudentModal, setActiveStudentModal] = useState<Student | null>(null);
+  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Fetch available classes
@@ -534,6 +537,27 @@ export default function StudentsPage() {
       setLoadingStudents(false);
     }
   }, [request]);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!studentToDelete || !selectedClass) return;
+    setDeleting(true);
+    try {
+      await request(API_ENDPOINTS.students.byId(studentToDelete.student_id), {
+        method: "DELETE",
+        params: { class_name: selectedClass }
+      });
+      toast(`✓ Student ${studentToDelete.name} has been deleted`, "success");
+      setStudentToDelete(null);
+      if (activeStudentModal?.student_id === studentToDelete.student_id) {
+        setActiveStudentModal(null);
+      }
+      fetchStudents(selectedClass);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to delete student", "error");
+    } finally {
+      setDeleting(false);
+    }
+  }, [studentToDelete, selectedClass, activeStudentModal, request, toast, fetchStudents]);
 
   function selectClass(name: string) {
     setSelectedClass(name);
@@ -997,6 +1021,7 @@ export default function StudentsPage() {
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
                         <button
+                          onClick={() => setActiveStudentModal(student)}
                           className="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
                           style={{ color: "var(--brand-500)" }}
                           onMouseEnter={(e) => {
@@ -1008,6 +1033,21 @@ export default function StudentsPage() {
                           }}
                         >
                           View →
+                        </button>
+                        <button
+                          onClick={() => setStudentToDelete(student)}
+                          className="rounded-lg p-1.5 transition-colors"
+                          style={{ color: "var(--danger-500)" }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor =
+                              "color-mix(in srgb, var(--danger-500) 10%, transparent)";
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+                          }}
+                          title="Delete Student"
+                        >
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </td>
@@ -1026,6 +1066,174 @@ export default function StudentsPage() {
         selectedClass={selectedClass}
         onSuccess={() => fetchStudents(selectedClass)}
       />
+
+      {/* View Student Modal */}
+      <Modal
+        isOpen={activeStudentModal !== null}
+        onClose={() => setActiveStudentModal(null)}
+        title="Student Profile Overview"
+        subtitle="Registered Student Details"
+      >
+        {activeStudentModal && (
+          <div className="p-6 space-y-6">
+            {/* Avatar section */}
+            <div className="flex flex-col items-center gap-2">
+              <div
+                className="flex h-20 w-20 items-center justify-center rounded-full text-2xl font-bold text-white"
+                style={{
+                  background: `linear-gradient(135deg, hsl(${(activeStudentModal.name.charCodeAt(0) * 17) % 360}deg 60% 55%), hsl(${(activeStudentModal.name.charCodeAt(0) * 17 + 40) % 360}deg 60% 45%))`,
+                }}
+              >
+                {activeStudentModal.name.charAt(0).toUpperCase()}
+              </div>
+              <h3 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+                {activeStudentModal.name}
+              </h3>
+              <span className="text-xs px-2.5 py-1 rounded-full font-semibold font-mono" style={{ backgroundColor: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
+                ID: {activeStudentModal.student_id}
+              </span>
+            </div>
+
+            {/* Profile Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-2xl border p-4" style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-subtle)" }}>
+              <div>
+                <span className="text-[10px] font-semibold uppercase tracking-wider block" style={{ color: "var(--text-muted)" }}>
+                  Registration Number
+                </span>
+                <span className="text-sm font-semibold font-mono" style={{ color: "var(--text-secondary)" }}>
+                  {activeStudentModal.reg_number}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] font-semibold uppercase tracking-wider block" style={{ color: "var(--text-muted)" }}>
+                  Assigned Class
+                </span>
+                <span className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
+                  {selectedClass || "N/A"}
+                </span>
+              </div>
+              <div className="sm:col-span-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wider block" style={{ color: "var(--text-muted)" }}>
+                  Registration Date
+                </span>
+                <span className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                  {activeStudentModal.created_at
+                    ? new Date(activeStudentModal.created_at).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "N/A"}
+                </span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-4 border-t" style={{ borderColor: "var(--border-subtle)" }}>
+              <button
+                type="button"
+                onClick={() => setActiveStudentModal(null)}
+                className="flex-1 rounded-xl border py-2.5 text-sm font-semibold transition-colors"
+                style={{
+                  borderColor: "var(--border-default)",
+                  color: "var(--text-secondary)",
+                  backgroundColor: "var(--bg-surface)",
+                }}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => setStudentToDelete(activeStudentModal)}
+                className="flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                style={{
+                  backgroundColor: "var(--danger-500)",
+                  width: "140px",
+                }}
+              >
+                <Trash2 size={13} />
+                Delete Profile
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Confirm Delete Modal */}
+      <Modal
+        isOpen={studentToDelete !== null}
+        onClose={() => setStudentToDelete(null)}
+        title="Confirm Student Deletion"
+        subtitle="High-risk administrative action"
+        maxWidth="max-w-md"
+      >
+        {studentToDelete && (
+          <div className="p-6 space-y-5">
+            <div
+              className="flex items-start gap-3 rounded-2xl border p-4 text-sm"
+              style={{
+                backgroundColor: "color-mix(in srgb, var(--danger-500) 8%, transparent)",
+                borderColor: "color-mix(in srgb, var(--danger-500) 25%, transparent)",
+                color: "var(--danger-500)",
+              }}
+            >
+              <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-semibold">Warning: This action cannot be undone!</p>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  Deleting <strong>{studentToDelete.name}</strong> will permanently remove their face recognition profile, image references, and all metadata from the database collection.
+                </p>
+              </div>
+            </div>
+
+            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+              Are you sure you want to delete this student profile?
+            </p>
+
+            <div className="flex gap-3 pt-3 border-t" style={{ borderColor: "var(--border-subtle)" }}>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => setStudentToDelete(null)}
+                className="flex-1 rounded-xl border py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+                style={{
+                  borderColor: "var(--border-default)",
+                  color: "var(--text-secondary)",
+                  backgroundColor: "var(--bg-surface)",
+                }}
+              >
+                Cancel
+              </button>
+              <motion.button
+                type="button"
+                disabled={deleting}
+                whileHover={{ scale: deleting ? 1 : 1.02 }}
+                whileTap={{ scale: deleting ? 1 : 0.97 }}
+                onClick={handleDeleteConfirm}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                style={{
+                  backgroundColor: "var(--danger-500)",
+                  boxShadow: "0 4px 12px color-mix(in srgb, var(--danger-500) 30%, transparent)",
+                }}
+              >
+                {deleting ? (
+                  <>
+                    <RefreshCw size={13} className="animate-spin" />
+                    Deleting…
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={13} />
+                    Delete Student
+                  </>
+                )}
+              </motion.button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
