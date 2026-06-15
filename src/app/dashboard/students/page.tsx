@@ -310,9 +310,9 @@ function RegisterModal({
               type="text"
               placeholder="e.g. 22-NTU-CS-1192"
               value={form.regNumber}
-              onChange={(e) => setForm((f) => ({ ...f, regNumber: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, regNumber: e.target.value.toUpperCase() }))}
               required
-              className="w-full rounded-xl border px-4 py-3 font-mono text-sm outline-none transition-all"
+              className="w-full rounded-xl border px-4 py-3 font-mono text-sm outline-none transition-all uppercase"
               style={{
                 backgroundColor: "var(--bg-elevated)",
                 borderColor: "var(--border-default)",
@@ -501,8 +501,9 @@ export default function StudentsPage() {
       // Extract: window.AVAILABLE_CLASSES = ["BSCS-8A", "BSCS-8B", ...];
       const match = html.match(/window\.AVAILABLE_CLASSES\s*=\s*(\[[\s\S]*?\])/);
       if (match) {
-        const parsed: string[] = JSON.parse(match[1]);
-        setClasses(parsed);
+        const parsed = JSON.parse(match[1]);
+        const classNames = parsed.map((c: any) => c.class_name || c);
+        setClasses(classNames.sort());
       } else {
         setClasses([]);
       }
@@ -593,7 +594,17 @@ export default function StudentsPage() {
       toast(`Class "${name}" created successfully`, "success");
       setNewClassName("");
       setShowCreateForm(false);
-      await fetchClasses(); // refresh list
+      
+      // Update local classes state immediately to ensure the newly created class
+      // appears in the UI dashboard without requiring any page reload
+      setClasses((prev) => {
+        if (!prev.includes(name)) {
+          return [...prev, name].sort((a, b) => a.localeCompare(b));
+        }
+        return prev;
+      });
+
+      await fetchClasses(); // background refresh/re-fetch
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to create class", "error");
     } finally {
@@ -652,8 +663,8 @@ export default function StudentsPage() {
               type="text"
               placeholder="Filter classes…"
               value={classFilter}
-              onChange={(e) => setClassFilter(e.target.value)}
-              className="flex-1 bg-transparent text-xs outline-none"
+              onChange={(e) => setClassFilter(e.target.value.toUpperCase())}
+              className="flex-1 bg-transparent text-xs outline-none uppercase"
               style={{ color: "var(--text-primary)" }}
             />
           </div>
@@ -695,8 +706,8 @@ export default function StudentsPage() {
                   type="text"
                   placeholder="Class name (e.g. BSCS-8B)"
                   value={newClassName}
-                  onChange={(e) => setNewClassName(e.target.value)}
-                  className="flex-1 rounded-xl border px-3 py-2 font-mono text-sm outline-none"
+                  onChange={(e) => setNewClassName(e.target.value.toUpperCase())}
+                  className="flex-1 rounded-xl border px-3 py-2 font-mono text-sm outline-none uppercase"
                   style={{
                     backgroundColor: "var(--bg-elevated)",
                     borderColor: "var(--border-default)",
@@ -848,8 +859,8 @@ export default function StudentsPage() {
           type="text"
           placeholder={`Search students in ${selectedClass}…`}
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="flex-1 bg-transparent text-sm outline-none"
+          onChange={(e) => setSearchQuery(e.target.value.toUpperCase())}
+          className="flex-1 bg-transparent text-sm outline-none uppercase"
           style={{ color: "var(--text-primary)" }}
         />
         {searchQuery && (

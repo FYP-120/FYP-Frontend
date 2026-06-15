@@ -139,8 +139,8 @@ export default function AttendancePage() {
           type="text"
           placeholder="Filter by class (e.g. BSCS-8B)"
           value={classFilter}
-          onChange={(e) => setClassFilter(e.target.value)}
-          className="rounded-xl border px-3 py-2 text-xs outline-none"
+          onChange={(e) => setClassFilter(e.target.value.toUpperCase())}
+          className="rounded-xl border px-3 py-2 text-xs outline-none uppercase"
           style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-default)", color: "var(--text-primary)", minWidth: 200 }}
           onKeyDown={(e) => e.key === "Enter" && fetchRecords()}
         />
