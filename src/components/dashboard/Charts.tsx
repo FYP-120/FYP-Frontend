@@ -127,6 +127,8 @@ function AttendanceTooltip({ active, payload, label }: CustomTooltipProps) {
  */
 export function AttendanceAreaChart({ data }: { data: AttendanceDayPoint[] }) {
   const t = useChartTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   return (
     <div
@@ -159,60 +161,64 @@ export function AttendanceAreaChart({ data }: { data: AttendanceDayPoint[] }) {
       </div>
 
       <div className="h-[260px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-            <defs>
-              <linearGradient id="gradPresent" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor={COLORS.accent}  stopOpacity={0.3} />
-                <stop offset="95%" stopColor={COLORS.accent}  stopOpacity={0}   />
-              </linearGradient>
-              <linearGradient id="gradAbsent" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor={COLORS.danger}  stopOpacity={0.25} />
-                <stop offset="95%" stopColor={COLORS.danger}  stopOpacity={0}    />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke={t.grid} strokeDasharray="4 4" vertical={false} />
-            <XAxis
-              dataKey="date"
-              tick={{ fill: t.axis, fontSize: 10 }}
-              tickLine={false}
-              axisLine={false}
-              interval="preserveStartEnd"
-            />
-            <YAxis
-              tick={{ fill: t.axis, fontSize: 10 }}
-              tickLine={false}
-              axisLine={false}
-              allowDecimals={false}
-            />
-            <Tooltip content={<AttendanceTooltip />} />
-            <Legend
-              wrapperStyle={{ fontSize: 11, color: t.legendText, paddingTop: 12 }}
-              iconType="circle"
-              iconSize={8}
-            />
-            <Area
-              type="monotone"
-              dataKey="present"
-              name="Present"
-              stroke={COLORS.accent}
-              strokeWidth={2}
-              fill="url(#gradPresent)"
-              dot={false}
-              activeDot={{ r: 4, strokeWidth: 0 }}
-            />
-            <Area
-              type="monotone"
-              dataKey="absent"
-              name="Absent"
-              stroke={COLORS.danger}
-              strokeWidth={2}
-              fill="url(#gradAbsent)"
-              dot={false}
-              activeDot={{ r: 4, strokeWidth: 0 }}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        {mounted ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="gradPresent" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor={COLORS.accent}  stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={COLORS.accent}  stopOpacity={0}   />
+                </linearGradient>
+                <linearGradient id="gradAbsent" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor={COLORS.danger}  stopOpacity={0.25} />
+                  <stop offset="95%" stopColor={COLORS.danger}  stopOpacity={0}    />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke={t.grid} strokeDasharray="4 4" vertical={false} />
+              <XAxis
+                dataKey="date"
+                tick={{ fill: t.axis, fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                interval="preserveStartEnd"
+              />
+              <YAxis
+                tick={{ fill: t.axis, fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip content={<AttendanceTooltip />} />
+              <Legend
+                wrapperStyle={{ fontSize: 11, color: t.legendText, paddingTop: 12 }}
+                iconType="circle"
+                iconSize={8}
+              />
+              <Area
+                type="monotone"
+                dataKey="present"
+                name="Present"
+                stroke={COLORS.accent}
+                strokeWidth={2}
+                fill="url(#gradPresent)"
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+              />
+              <Area
+                type="monotone"
+                dataKey="absent"
+                name="Absent"
+                stroke={COLORS.danger}
+                strokeWidth={2}
+                fill="url(#gradAbsent)"
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-full w-full" />
+        )}
       </div>
     </div>
   );
@@ -260,6 +266,8 @@ function SentimentTooltip({ active, payload }: CustomTooltipProps) {
  */
 export function SentimentPieChart() {
   const t = useChartTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   return (
     <div
@@ -282,30 +290,34 @@ export function SentimentPieChart() {
       <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">
         {/* Pie */}
         <div className="h-[200px] w-[200px] flex-shrink-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={SENTIMENT_DATA}
-                cx="50%"
-                cy="50%"
-                innerRadius={55}
-                outerRadius={85}
-                paddingAngle={3}
-                dataKey="value"
-                startAngle={90}
-                endAngle={-270}
-              >
-                {SENTIMENT_DATA.map((entry) => (
-                  <Cell
-                    key={entry.name}
-                    fill={entry.color}
-                    stroke="transparent"
-                  />
-                ))}
-              </Pie>
-              <Tooltip content={<SentimentTooltip />} />
-            </PieChart>
-          </ResponsiveContainer>
+          {mounted ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={SENTIMENT_DATA}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={55}
+                  outerRadius={85}
+                  paddingAngle={3}
+                  dataKey="value"
+                  startAngle={90}
+                  endAngle={-270}
+                >
+                  {SENTIMENT_DATA.map((entry) => (
+                    <Cell
+                      key={entry.name}
+                      fill={entry.color}
+                      stroke="transparent"
+                    />
+                  ))}
+                </Pie>
+                <Tooltip content={<SentimentTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full w-full" />
+          )}
         </div>
 
         {/* Legend */}

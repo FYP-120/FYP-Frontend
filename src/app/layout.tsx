@@ -56,6 +56,7 @@ export default function RootLayout({
       lang="en"
       suppressHydrationWarning          // Required by next-themes to avoid mismatch
       className={`${inter.variable} ${firaCode.variable} h-full`}
+      data-scroll-behavior="smooth"
     >
       <body className="min-h-full flex flex-col antialiased">
         {/*
