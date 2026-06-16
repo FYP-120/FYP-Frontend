@@ -201,7 +201,7 @@ function LoginCard() {
                 id={emailId}
                 type="text"
                 autoComplete="username"
-                placeholder="admin@fyp.com"
+                placeholder="username"
                 value={form.username}
                 onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
                 required
@@ -331,7 +331,7 @@ function LoginCard() {
           </form>
 
           {/* Hint */}
-          <p
+          {/* <p
             className="mt-6 text-center text-xs"
             style={{ color: "var(--text-muted)" }}
           >
@@ -343,7 +343,7 @@ function LoginCard() {
             <span className="font-mono" style={{ color: "var(--brand-400)" }}>
               admin123
             </span>
-          </p>
+          </p> */}
         </div>
       </TiltCard>
     </motion.div>
@@ -588,7 +588,7 @@ export default function LandingPage() {
           <LoginCard />
 
           {/* Backend status indicator */}
-          <motion.div
+          {/* <motion.div
             custom={6}
             variants={fadeIn}
             initial="hidden"
@@ -616,7 +616,7 @@ export default function LandingPage() {
             >
               127.0.0.1:8000
             </code>
-          </motion.div>
+          </motion.div> */}
         </div>
       </div>
 
@@ -632,7 +632,7 @@ export default function LandingPage() {
           color: "var(--text-muted)",
         }}
       >
-        FRAS · Real-Time Face Recognition Attendance System · Built with FastAPI &amp; Next.js
+        Built with ❤️ by 1211, 1200, 1192
       </motion.footer>
     </main>
   );
