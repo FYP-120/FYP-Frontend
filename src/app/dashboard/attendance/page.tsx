@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import {
   CalendarCheck,
-  Search,
   RefreshCw,
   AlertCircle,
   CheckCircle,
@@ -22,7 +21,7 @@ import {
 import { API_ENDPOINTS, apiRequest, ApiError, API_BASE_URL } from "@/config/api";
 import { getStoredToken } from "@/hooks/useAuth";
 import { useToast } from "@/components/ui/Toast";
-import type { AttendanceListResponse, AttendanceRecord, AttendanceStatus, Course } from "@/types/api";
+import type { AttendanceRecord, AttendanceStatus, Course } from "@/types/api";
 
 const STATUS_CONFIG: Record<AttendanceStatus, { icon: React.ElementType; color: string; bg: string }> = {
   Present: { icon: CheckCircle, color: "var(--accent-500)", bg: "color-mix(in srgb, var(--accent-500) 10%, transparent)" },
@@ -55,6 +54,7 @@ export default function AttendancePage() {
   // ── Filter State ──
   const [dateFilter, setDateFilter] = useState(new Date().toISOString().split("T")[0]);
   const [classFilter, setClassFilter] = useState("");
+  const [classes, setClasses] = useState<string[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
 
@@ -68,6 +68,30 @@ export default function AttendancePage() {
   // ── Delete Modal State ──
   const [recordToDelete, setRecordToDelete] = useState<AttendanceRecord | null>(null);
   const [deletingRecord, setDeletingRecord] = useState(false);
+
+  // ── Export State ──
+  const [exporting, setExporting] = useState(false);
+
+  // Fetch available classes from backend camera UI page
+  useEffect(() => {
+    async function loadClasses() {
+      try {
+        const res = await fetch(`${API_BASE_URL}/camera`, {
+          cache: "no-store",
+        });
+        const html = await res.text();
+        const match = html.match(/window\.AVAILABLE_CLASSES\s*=\s*(\[[\s\S]*?\])/);
+        if (match) {
+          const parsed = JSON.parse(match[1]);
+          const classNames = parsed.map((c: any) => c.class_name || c);
+          setClasses(classNames.sort());
+        }
+      } catch (err) {
+        console.error("Failed to load classes:", err);
+      }
+    }
+    loadClasses();
+  }, []);
 
   // Fetch subjects for a specific class to allow course filtering
   useEffect(() => {
@@ -84,10 +108,17 @@ export default function AttendancePage() {
           token,
           params: { class_name: classFilter.trim() },
         });
-        setCourses(Array.isArray(data) ? data : []);
+        const coursesList = Array.isArray(data) ? data : [];
+        setCourses(coursesList);
+        if (coursesList.length > 0) {
+          setSelectedCourse(coursesList[0]);
+        } else {
+          setSelectedCourse(null);
+        }
       } catch (err) {
         console.error("Failed to load courses for class filter:", err);
         setCourses([]);
+        setSelectedCourse(null);
       }
     }, 500);
 
@@ -96,26 +127,49 @@ export default function AttendancePage() {
 
   // Fetch attendance records based on filters
   const fetchRecords = useCallback(async () => {
+    if (!classFilter.trim()) {
+      setRecords([]);
+      setTotal(0);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
       const token = getStoredToken() ?? undefined;
-      const params: Record<string, string> = { skip: "0", limit: "100" };
-      if (dateFilter) params.date = dateFilter;
-      if (classFilter.trim()) params.class_name = classFilter.trim();
+      const params: Record<string, string> = { 
+        date: dateFilter, 
+        class: classFilter.trim() 
+      };
+
       if (selectedCourse) {
-        params.course_name = selectedCourse.course_name;
-        params.course_code = selectedCourse.course_code;
+        params.subject = selectedCourse.course_code || selectedCourse.course_name;
       }
 
-      const data = await apiRequest<AttendanceListResponse>(API_ENDPOINTS.attendance.list, {
+      const data = await apiRequest<any[]>(`${API_BASE_URL}/attendance/report`, {
         token,
         params,
       });
-      setRecords(data.records);
-      setTotal(data.count);
+
+      const mappedRecords: AttendanceRecord[] = data.map((r, idx) => ({
+        _id: r.record_id || `${r.student_id}-${idx}`,
+        student_id: r.student_id,
+        name: r.name,
+        class_name: classFilter.trim(),
+        course_name: r.course_name || (selectedCourse ? selectedCourse.course_name : "All Subjects"),
+        course_code: r.course_code || (selectedCourse ? selectedCourse.course_code : ""),
+        status: r.status as AttendanceStatus,
+        date: r.date || `${dateFilter}T09:00:00`,
+        confidence: undefined,
+      }));
+
+      setRecords(mappedRecords);
+      setTotal(mappedRecords.length);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Could not load attendance records.");
+      setError(e instanceof ApiError ? e.message : "Could not load attendance report.");
+      setRecords([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -125,7 +179,49 @@ export default function AttendancePage() {
     fetchRecords();
   }, [fetchRecords]);
 
-  // Update attendance record (strict partial update: only sending modified fields)
+  const handleExportExcel = async () => {
+    if (!classFilter.trim()) {
+      toast("Please select a class first", "error");
+      return;
+    }
+    setExporting(true);
+    try {
+      const token = getStoredToken() ?? "";
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      
+      const res = await fetch(
+        `${API_BASE_URL}/attendance/export?class=${encodeURIComponent(classFilter.trim())}&date=${encodeURIComponent(dateFilter)}`,
+        { headers }
+      );
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.detail || `Failed to export Excel. Status: ${res.status}`);
+      }
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `attendance_grid_${classFilter.trim()}_${dateFilter}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast("✓ Excel sheet downloaded successfully", "success");
+    } catch (err) {
+      console.error(err);
+      toast(err instanceof Error ? err.message : "Failed to export Excel sheet", "error");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Update attendance record (manages both new records and PATCH updates)
   async function handleUpdateAttendance(e: React.FormEvent) {
     e.preventDefault();
     if (!activeEditRecord) return;
@@ -133,31 +229,49 @@ export default function AttendancePage() {
 
     try {
       const token = getStoredToken() ?? undefined;
-      const payload: Record<string, any> = {};
-
-      if (editStatus !== activeEditRecord.status) {
-        payload.status = editStatus;
-      }
-      if (editCourseName.trim() !== (activeEditRecord.course_name ?? "")) {
-        payload.course_name = editCourseName.trim();
-      }
-      if (editCourseCode.trim().toUpperCase() !== (activeEditRecord.course_code ?? "")) {
-        payload.course_code = editCourseCode.trim().toUpperCase();
-      }
-
-      if (Object.keys(payload).length === 0) {
-        setActiveEditRecord(null);
-        return;
-      }
-
       const currentClass = classFilter.trim() || activeEditRecord.class_name || "BSCS-8B";
+      const isNewRecord = !activeEditRecord._id || activeEditRecord._id.includes("-");
 
-      await apiRequest(API_ENDPOINTS.attendance.byId(activeEditRecord._id), {
-        method: "PATCH",
-        token,
-        body: payload,
-        params: { class_name: currentClass },
-      });
+      if (isNewRecord) {
+        // Post new manually marked record
+        const payload = {
+          student_id: activeEditRecord.student_id,
+          name: activeEditRecord.name,
+          status: editStatus,
+          course_name: editCourseName.trim() || (selectedCourse ? selectedCourse.course_name : undefined),
+          course_code: editCourseCode.trim().toUpperCase() || (selectedCourse ? selectedCourse.course_code : undefined),
+        };
+        await apiRequest(API_ENDPOINTS.attendance.mark, {
+          method: "POST",
+          token,
+          body: payload,
+          params: { class_name: currentClass },
+        });
+      } else {
+        // PATCH existing record
+        const payload: Record<string, any> = {};
+        if (editStatus !== activeEditRecord.status) {
+          payload.status = editStatus;
+        }
+        if (editCourseName.trim() !== (activeEditRecord.course_name ?? "")) {
+          payload.course_name = editCourseName.trim();
+        }
+        if (editCourseCode.trim().toUpperCase() !== (activeEditRecord.course_code ?? "")) {
+          payload.course_code = editCourseCode.trim().toUpperCase();
+        }
+
+        if (Object.keys(payload).length === 0) {
+          setActiveEditRecord(null);
+          return;
+        }
+
+        await apiRequest(API_ENDPOINTS.attendance.byId(activeEditRecord._id), {
+          method: "PATCH",
+          token,
+          body: payload,
+          params: { class_name: currentClass },
+        });
+      }
 
       toast("✓ Attendance record updated successfully", "success");
       setActiveEditRecord(null);
@@ -206,13 +320,45 @@ export default function AttendancePage() {
   return (
     <div className="p-5 sm:p-7 space-y-6">
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-        <h1 className="text-xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
-          Attendance Records
-        </h1>
-        <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-          Browse, filter, and manage attendance logs
-        </p>
+      <motion.div 
+        initial={{ opacity: 0, y: 14 }} 
+        animate={{ opacity: 1, y: 0 }} 
+        transition={{ duration: 0.4 }}
+        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+      >
+        <div>
+          <h1 className="text-xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+            Attendance Records
+          </h1>
+          <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+            Browse, filter, and manage attendance logs
+          </p>
+        </div>
+        
+        {classFilter && (
+          <button
+            onClick={handleExportExcel}
+            disabled={exporting}
+            className="cursor-pointer self-start sm:self-auto flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-semibold shadow-sm transition-all hover:bg-zinc-50 dark:hover:bg-zinc-900"
+            style={{ 
+              borderColor: "var(--border-default)", 
+              color: "var(--text-primary)", 
+              backgroundColor: "var(--bg-surface)",
+              cursor: "pointer"
+            }}
+          >
+            {exporting ? (
+              <><RefreshCw size={13} className="animate-spin" /> Exporting...</>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export Excel Grid
+              </>
+            )}
+          </button>
+        )}
       </motion.div>
 
       {/* Metrics & Analytics section */}
@@ -327,28 +473,67 @@ export default function AttendancePage() {
 
       {/* Filters */}
       <motion.div
-        initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}
-        className="flex flex-wrap gap-3 items-center"
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.1 }}
+        className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 sm:p-5 rounded-2xl border"
+        style={{
+          backgroundColor: "var(--bg-surface)",
+          borderColor: "var(--border-subtle)",
+        }}
       >
-        <input
-          type="date"
-          value={dateFilter}
-          onChange={(e) => setDateFilter(e.target.value)}
-          className="cursor-pointer rounded-xl border px-3 py-2 text-xs outline-none"
-          style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-default)", color: "var(--text-primary)" }}
-        />
-        <input
-          type="text"
-          placeholder="Filter by class (e.g. BSCS-8B)"
-          value={classFilter}
-          onChange={(e) => setClassFilter(e.target.value.toUpperCase())}
-          className="rounded-xl border px-3 py-2 text-xs outline-none uppercase"
-          style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-default)", color: "var(--text-primary)", minWidth: 200 }}
-          onKeyDown={(e) => e.key === "Enter" && fetchRecords()}
-        />
+        {/* Date Selector */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] font-bold uppercase tracking-wider pl-1" style={{ color: "var(--text-muted)" }}>
+            Attendance Date
+          </label>
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="w-full cursor-pointer rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all focus:border-brand-500 hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
+            style={{
+              cursor: "pointer",
+              backgroundColor: "var(--bg-elevated)",
+              borderColor: "var(--border-default)",
+              color: "var(--text-primary)",
+            }}
+          />
+        </div>
 
-        {/* Dynamic Course Filter Dropdown */}
-        {courses.length > 0 && (
+        {/* Class Selector */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] font-bold uppercase tracking-wider pl-1" style={{ color: "var(--text-muted)" }}>
+            Select Class
+          </label>
+          <div className="relative">
+            <select
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+              className="w-full cursor-pointer appearance-none rounded-xl border pr-9 pl-3.5 py-2.5 text-xs font-semibold outline-none transition-all focus:border-brand-500 hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
+              style={{
+                cursor: "pointer",
+                backgroundColor: "var(--bg-elevated)",
+                borderColor: "var(--border-default)",
+                color: "var(--text-primary)",
+              }}
+            >
+              <option value="">Select Class</option>
+              {classes.map((cls) => (
+                <option key={cls} value={cls}>
+                  {cls}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={13} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
+          </div>
+        </div>
+
+        {/* Course Selector */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] font-bold uppercase tracking-wider pl-1" style={{ color: "var(--text-muted)" }}>
+            Select Course
+          </label>
           <div className="relative">
             <select
               value={selectedCourse ? JSON.stringify(selectedCourse) : ""}
@@ -359,31 +544,28 @@ export default function AttendancePage() {
                   setSelectedCourse(null);
                 }
               }}
-              className="cursor-pointer appearance-none rounded-xl border pr-8 pl-4 py-2 text-xs font-semibold outline-none transition-all"
+              disabled={courses.length === 0}
+              className="w-full cursor-pointer appearance-none rounded-xl border pr-9 pl-3.5 py-2.5 text-xs font-semibold outline-none transition-all focus:border-brand-500 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
-                backgroundColor: "var(--bg-surface)",
+                cursor: "pointer",
+                backgroundColor: "var(--bg-elevated)",
                 borderColor: "var(--border-default)",
                 color: "var(--text-primary)",
               }}
             >
-              <option value="">All Courses</option>
-              {courses.map((c) => (
-                <option key={`${c.course_code}-${c.course_name}`} value={JSON.stringify(c)}>
-                  {c.course_code} · {c.course_name}
-                </option>
-              ))}
+              {courses.length === 0 ? (
+                <option value="">No Courses Available</option>
+              ) : (
+                courses.map((c) => (
+                  <option key={`${c.course_code}-${c.course_name}`} value={JSON.stringify(c)}>
+                    {c.course_name}
+                  </option>
+                ))
+              )}
             </select>
-            <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
+            <ChevronDown size={13} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
           </div>
-        )}
-
-        <button
-          onClick={fetchRecords}
-          className="cursor-pointer flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-semibold"
-          style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)", backgroundColor: "var(--bg-surface)" }}
-        >
-          <RefreshCw size={13} /> Refresh
-        </button>
+        </div>
       </motion.div>
 
       {/* Error */}
@@ -416,7 +598,7 @@ export default function AttendancePage() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border-subtle)", backgroundColor: "var(--bg-elevated)" }}>
-                  {["Student", "Reg Number", "Course / Subject", "Status", "Confidence", "Timestamp", "Actions"].map((h) => (
+                  {["Student", "Reg Number", "Course Code", "Status", "Timestamp", "Actions"].map((h) => (
                     <th key={h} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
                       {h}
                     </th>
@@ -432,29 +614,25 @@ export default function AttendancePage() {
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--bg-elevated)"; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
                   >
-                    <td className="px-5 py-3.5 font-medium" style={{ color: "var(--text-primary)" }}>{rec.name}</td>
-                    <td className="px-5 py-3.5">
-                      <code className="rounded px-2 py-0.5 font-mono text-xs" style={{ backgroundColor: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
+                    <td className="px-5 py-3.5 font-medium whitespace-nowrap" style={{ color: "var(--text-primary)" }}>{rec.name}</td>
+                    <td className="px-5 py-3.5 whitespace-nowrap">
+                      <code className="rounded px-2 py-0.5 font-mono text-xs whitespace-nowrap" style={{ backgroundColor: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
                         {rec.student_id}
                       </code>
                     </td>
-                    <td className="px-5 py-3.5 text-xs" style={{ color: "var(--text-secondary)" }}>
-                      {rec.course_name ? (
-                        <span className="flex items-center gap-1.5">
-                          <strong className="font-semibold px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px]">{rec.course_code}</strong>
-                          <span className="truncate max-w-[150px]">{rec.course_name}</span>
-                        </span>
+                    <td className="px-5 py-3.5 text-xs whitespace-nowrap">
+                      {rec.course_code ? (
+                        <code className="rounded px-2.5 py-1 font-mono text-xs whitespace-nowrap" style={{ backgroundColor: "var(--bg-elevated)", color: "var(--text-primary)" }}>
+                          {rec.course_code}
+                        </code>
                       ) : (
-                        <span className="text-zinc-400 italic text-[11px]">General / None</span>
+                        <span className="text-zinc-400 italic text-[11px]">—</span>
                       )}
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="px-5 py-3.5 whitespace-nowrap">
                       <StatusBadge status={rec.status} />
                     </td>
-                    <td className="px-5 py-3.5 text-xs" style={{ color: "var(--text-muted)" }}>
-                      {rec.confidence != null ? `${Math.round(rec.confidence * 100)}%` : "—"}
-                    </td>
-                    <td className="px-5 py-3.5 text-xs" style={{ color: "var(--text-muted)" }}>
+                    <td className="px-5 py-3.5 text-xs whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
                       {new Date(rec.date).toLocaleString()}
                     </td>
                     <td className="px-5 py-3.5">

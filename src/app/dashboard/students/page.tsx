@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef, useId } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import * as XLSX from "xlsx";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   Users, Plus, Search, RefreshCw, AlertCircle,
   ChevronRight, Camera, Trash2, X, School,
@@ -1119,48 +1121,210 @@ export default function StudentsPage() {
     if (!selectedClass) return;
     setDownloadingReport(true);
     try {
-      const todayDateStr = new Date().toLocaleDateString('en-CA'); // "YYYY-MM-DD"
-
-      const excelData = students.map((s) => {
-        const row: Record<string, string> = {
-          "Registration Number": s.reg_number,
-          "Name": s.name,
-        };
-
-        // For each course, find if the student is Present, Late, or Absent
-        classCourses.forEach((course) => {
-          const attRecord = getStudentCourseRecord(s.student_id, attendanceRecords, course.course_code);
-          const columnName = `${course.course_name} (${course.course_code})`;
-          row[columnName] = attRecord ? attRecord.status : "Absent";
-        });
-
-        row["Date"] = todayDateStr;
-        return row;
+      // 1. Sort students by roll number / registration number
+      const sortedStudents = [...students].sort((a, b) => {
+        const regA = a.reg_number || a.student_id || "";
+        const regB = b.reg_number || b.student_id || "";
+        return regA.localeCompare(regB, undefined, { numeric: true, sensitivity: 'base' });
       });
 
-      const worksheet = XLSX.utils.json_to_sheet(excelData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance Report");
+      // 2. Map unique dates for each course to calculate completed lectures
+      const courseDatesMap: Record<string, Set<string>> = {};
+      classCourses.forEach(c => {
+        courseDatesMap[c.course_code] = new Set<string>();
+      });
+      attendanceRecords.forEach(r => {
+        let rCode = r.course_code;
+        if (!rCode && r.course_name) {
+          const matchedCourse = classCourses.find(c => c.course_name === r.course_name);
+          if (matchedCourse) rCode = matchedCourse.course_code;
+        }
+        if (rCode && courseDatesMap[rCode]) {
+          const dateStr = r.date ? r.date.split("T")[0] : "";
+          if (dateStr) {
+            courseDatesMap[rCode].add(dateStr);
+          }
+        }
+      });
 
-      // Set column widths dynamically
-      const colWidths = [
-        { wch: 20 }, // Registration Number
-        { wch: 25 }, // Name
-        ...classCourses.map(() => ({ wch: 25 })), // Courses
-        { wch: 15 }  // Date
-      ];
-      worksheet["!cols"] = colWidths;
+      // Initialize jsPDF document
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
 
-      const filename = `attendance_${selectedClass}_${new Date().toISOString().split('T')[0]}.xlsx`;
-      XLSX.writeFile(workbook, filename);
+      // Title & Header info
+      doc.setFontSize(20);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42); // slate-900
+      doc.text("Class Attendance Report", 14, 20);
 
-      toast("✓ Attendance report downloaded successfully", "success");
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(71, 85, 105); // slate-600
+      doc.text(`Class: ${selectedClass}`, 14, 26);
+      doc.text(`Generated Date: ${new Date().toLocaleDateString()}`, 14, 31);
+      doc.text(`Total Enrolled Students: ${students.length}`, 14, 36);
+
+      // --- SECTION 1: Class Summary Table ---
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      doc.text("Attendance Summary Overview", 14, 46);
+
+      const summaryHead = ["S.No.", "Roll Number", "Student Name", ...classCourses.map(c => c.course_code), "Average"];
+      
+      const summaryRows = sortedStudents.map((s, idx) => {
+        let totalPctSum = 0;
+        let validCoursesCount = 0;
+        
+        const rowData = [
+          (idx + 1).toString(),
+          s.reg_number || s.student_id,
+          s.name,
+        ];
+        
+        classCourses.forEach(c => {
+          const totalLectures = courseDatesMap[c.course_code]?.size || 0;
+          const studentRecords = attendanceRecords.filter(r => {
+            let rCode = r.course_code;
+            if (!rCode && r.course_name) {
+              const matchedCourse = classCourses.find(c => c.course_name === r.course_name);
+              if (matchedCourse) rCode = matchedCourse.course_code;
+            }
+            if (rCode !== c.course_code) return false;
+            
+            const sId = s.student_id;
+            const rId = r.student_id;
+            if (rId === sId) return true;
+            
+            const cleanStudentId = sId.replace(/^0+/, "");
+            const cleanRecordId = rId.replace(/^0+/, "");
+            const rMatch = rId.match(/.*-(\d+)$/);
+            const sMatch = sId.match(/.*-(\d+)$/);
+            const rSuffix = rMatch ? rMatch[1].replace(/^0+/, "") : cleanRecordId;
+            const sSuffix = sMatch ? sMatch[1].replace(/^0+/, "") : cleanStudentId;
+            
+            return rSuffix === sSuffix && rSuffix !== "";
+          });
+          const attended = studentRecords.filter(r => r.status === "Present" || r.status === "Late").length;
+          const percentage = totalLectures > 0 ? Math.round((attended / totalLectures) * 100) : 100;
+          
+          rowData.push(`${percentage}%`);
+          totalPctSum += percentage;
+          validCoursesCount++;
+        });
+        
+        const average = validCoursesCount > 0 ? Math.round(totalPctSum / validCoursesCount) : 100;
+        rowData.push(`${average}%`);
+        
+        return rowData;
+      });
+
+      autoTable(doc, {
+        startY: 50,
+        head: [summaryHead],
+        body: summaryRows,
+        theme: "striped",
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold" },
+        styles: { fontSize: 8, cellPadding: 2.2 },
+        margin: { left: 14, right: 14 }
+      });
+
+      // --- SECTION 2: Detailed Student Sheets ---
+      let currentY = (doc as any).lastAutoTable.finalY + 15;
+      
+      // Page break if not enough room on first page for detailed section start
+      if (currentY > 230) {
+        doc.addPage();
+        currentY = 20;
+      } else {
+        doc.addPage();
+        currentY = 20;
+      }
+      
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      doc.text("Detailed Student Attendance Breakdown", 14, currentY);
+      currentY += 10;
+
+      sortedStudents.forEach((s, idx) => {
+        // Safe check for vertical space per student card (~50mm needed)
+        if (currentY > 235) {
+          doc.addPage();
+          currentY = 20;
+        }
+
+        doc.setFontSize(10.5);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(15, 23, 42);
+        doc.text(`${idx + 1}. ${s.name} (${s.reg_number || s.student_id})`, 14, currentY);
+
+        const studentCourseRows = classCourses.map(c => {
+          const totalLectures = courseDatesMap[c.course_code]?.size || 0;
+          const studentRecords = attendanceRecords.filter(r => {
+            let rCode = r.course_code;
+            if (!rCode && r.course_name) {
+              const matchedCourse = classCourses.find(c => c.course_name === r.course_name);
+              if (matchedCourse) rCode = matchedCourse.course_code;
+            }
+            if (rCode !== c.course_code) return false;
+            
+            const sId = s.student_id;
+            const rId = r.student_id;
+            if (rId === sId) return true;
+            
+            const cleanStudentId = sId.replace(/^0+/, "");
+            const cleanRecordId = rId.replace(/^0+/, "");
+            const rMatch = rId.match(/.*-(\d+)$/);
+            const sMatch = sId.match(/.*-(\d+)$/);
+            const rSuffix = rMatch ? rMatch[1].replace(/^0+/, "") : cleanRecordId;
+            const sSuffix = sMatch ? sMatch[1].replace(/^0+/, "") : cleanStudentId;
+            
+            return rSuffix === sSuffix && rSuffix !== "";
+          });
+          const attended = studentRecords.filter(r => r.status === "Present" || r.status === "Late").length;
+          const missed = Math.max(0, totalLectures - attended);
+          const percentage = totalLectures > 0 ? Math.round((attended / totalLectures) * 100) : 100;
+
+          return [
+            c.course_code,
+            c.course_name,
+            attended.toString(),
+            missed.toString(),
+            totalLectures.toString(),
+            `${percentage}%`
+          ];
+        });
+
+        autoTable(doc, {
+          startY: currentY + 3,
+          head: [["Course Code", "Course Name", "Attended", "Absent", "Total Lectures", "Percentage"]],
+          body: studentCourseRows,
+          theme: "grid",
+          headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255], fontStyle: "bold" },
+          styles: { fontSize: 8, cellPadding: 1.8 },
+          margin: { left: 14, right: 14 }
+        });
+
+        currentY = (doc as any).lastAutoTable.finalY + 12;
+      });
+
+      // Save PDF File
+      const dateStr = new Date().toISOString().split('T')[0];
+      const filename = `attendance_report_${selectedClass}_${dateStr}.pdf`;
+      doc.save(filename);
+
+      toast("✓ PDF report downloaded successfully", "success");
     } catch (err) {
+      console.error(err);
       toast(err instanceof Error ? err.message : "Failed to download report", "error");
     } finally {
       setDownloadingReport(false);
     }
-  }, [selectedClass, students, classCourses, attendanceRecords, getStudentCourseRecord, toast]);
+  }, [selectedClass, students, classCourses, attendanceRecords, toast]);
 
   const handleDownloadCourseReport = useCallback(() => {
     if (!selectedClass || !selectedAttendanceCourse) return;

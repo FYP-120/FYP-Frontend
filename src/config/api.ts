@@ -36,6 +36,7 @@ export const API_ENDPOINTS = {
     list:          `${API_BASE_URL}/attendance/`,
     mark:          `${API_BASE_URL}/attendance/mark`,
     markFromImage: `${API_BASE_URL}/attendance/mark-from-image`,
+    exportGrid:    `${API_BASE_URL}/attendance/export`,
     /** Pass attendanceId to get /attendance/:id */
     byId: (attendanceId: string) => `${API_BASE_URL}/attendance/${attendanceId}`,
   },

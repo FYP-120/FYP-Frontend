@@ -59,7 +59,7 @@ export interface AttendanceRecord {
   name: string;
   date: string; // ISO 8601
   status: AttendanceStatus;
-  confidence: number;
+  confidence?: number;
   class_name?: string;
   course_name?: string;
   course_code?: string;
