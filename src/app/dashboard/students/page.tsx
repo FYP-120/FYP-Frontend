@@ -752,6 +752,7 @@ export default function StudentsPage() {
   const [newClassName,  setNewClassName]  = useState("");
   const [creatingClass, setCreatingClass] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [selectedDegree, setSelectedDegree] = useState<"BSCS" | "BSAI" | "BSSE">("BSCS");
 
   // ── Student directory state ──
   const [selectedClass,   setSelectedClass]   = useState<string | null>(null);
@@ -794,9 +795,13 @@ export default function StudentsPage() {
       )
     : students;
 
-  const filteredClasses = classFilter.trim()
-    ? classes.filter((c) => c.toLowerCase().includes(classFilter.toLowerCase()))
-    : classes;
+  const filteredClasses = classes.filter((c) => {
+    const matchesDegree = c.toUpperCase().startsWith(selectedDegree);
+    const matchesSearch = classFilter.trim()
+      ? c.toLowerCase().includes(classFilter.toLowerCase())
+      : true;
+    return matchesDegree && matchesSearch;
+  });
 
   // ─────────────────────────────────────────────────────────────────────────
   // Fetch available classes
@@ -1270,45 +1275,90 @@ export default function StudentsPage() {
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
+          className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
         >
-          <h1 className="text-xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
-            Student Management
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-            Select a class to view and manage its enrolled students.
-          </p>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+              Student Management
+            </h1>
+            <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+              Select a class to view and manage its enrolled students.
+            </p>
+          </div>
+          <div>
+            <button
+              onClick={() => setShowCreateForm((v) => !v)}
+              className="flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold text-white shadow-sm transition-all"
+              style={{ background: "linear-gradient(135deg, var(--brand-600), var(--brand-500))" }}
+            >
+              <FolderPlus size={13} />
+              New Class
+            </button>
+          </div>
         </motion.div>
 
-        {/* Class search + refresh row */}
+        {/* Controls row: Degree Selector and Search input separated */}
         <motion.div
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.05 }}
-          className="flex flex-wrap gap-3"
+          className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
         >
+          {/* Degree Selector (modern segmented radio buttons) */}
+          <div className="flex items-center gap-1 rounded-xl p-1 border" style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-default)", width: "fit-content" }}>
+            {(["BSCS", "BSAI", "BSSE"] as const).map((degree) => {
+              const isActive = selectedDegree === degree;
+              return (
+                <button
+                  key={degree}
+                  type="button"
+                  onClick={() => setSelectedDegree(degree)}
+                  className="relative px-4 py-1.5 text-xs font-semibold rounded-lg transition-all focus:outline-none"
+                  style={{
+                    color: isActive ? "var(--brand-50)" : "var(--text-muted)",
+                  }}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="active-degree-bg"
+                      className="absolute inset-0 rounded-lg"
+                      style={{
+                        background: "linear-gradient(135deg, var(--brand-600), var(--brand-500))",
+                        zIndex: 0,
+                      }}
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                    />
+                  )}
+                  <span className="relative z-10">{degree}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Separate Class Search input field */}
           <div
-            className="flex flex-1 items-center gap-2 rounded-xl border px-3 py-2"
-            style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-default)", minWidth: 200 }}
+            className="flex items-center gap-2 rounded-xl border px-3 py-2 sm:max-w-xs w-full"
+            style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-default)" }}
           >
             <Search size={14} style={{ color: "var(--text-muted)" }} />
             <input
               type="text"
-              placeholder="Filter classes…"
+              placeholder={`Search ${selectedDegree} classes…`}
               value={classFilter}
               onChange={(e) => setClassFilter(e.target.value.toUpperCase())}
               className="flex-1 bg-transparent text-xs outline-none uppercase"
               style={{ color: "var(--text-primary)" }}
             />
+            {classFilter && (
+              <button
+                type="button"
+                onClick={() => setClassFilter("")}
+                style={{ color: "var(--text-muted)" }}
+              >
+                <X size={12} />
+              </button>
+            )}
           </div>
-
-          <button
-            onClick={() => setShowCreateForm((v) => !v)}
-            className="flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold text-white"
-            style={{ background: "linear-gradient(135deg, var(--brand-600), var(--brand-500))" }}
-          >
-            <FolderPlus size={13} />
-            New Class
-          </button>
         </motion.div>
 
         {/* Create class inline form */}
