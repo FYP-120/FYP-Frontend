@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useId } from "react";
+import { useState, useEffect, useCallback, useId, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BookOpen, Plus, RefreshCw, AlertCircle, Trash2, X,
@@ -123,6 +123,105 @@ function DeleteCourseModal({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Custom Dropdown Component
+// ─────────────────────────────────────────────────────────────────────────────
+function CustomDropdown<T extends string | number>({
+  value,
+  options,
+  onChange,
+  renderLabel,
+}: {
+  value: T;
+  options: T[];
+  onChange: (val: T) => void;
+  renderLabel: (val: T) => string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="cursor-pointer flex items-center justify-between gap-2 rounded-xl border px-4 py-2 text-sm font-semibold outline-none transition-all w-full min-w-[120px]"
+        style={{
+          backgroundColor: "var(--bg-surface)",
+          borderColor: "var(--border-default)",
+          color: "var(--text-primary)",
+        }}
+      >
+        <span>{renderLabel(value)}</span>
+        <motion.div
+          animate={{ rotate: isOpen ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <ChevronDown size={13} style={{ color: "var(--text-muted)" }} />
+        </motion.div>
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+            className="absolute left-0 mt-1.5 z-50 min-w-full rounded-xl border p-1 shadow-lg max-h-60 overflow-y-auto"
+            style={{
+              backgroundColor: "var(--bg-surface)",
+              borderColor: "var(--border-subtle)",
+            }}
+          >
+            {options.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => {
+                  onChange(opt);
+                  setIsOpen(false);
+                }}
+                className="cursor-pointer flex w-full items-center rounded-lg px-3 py-2 text-xs font-semibold transition-colors text-left"
+                style={{
+                  backgroundColor: opt === value
+                    ? "color-mix(in srgb, var(--brand-500) 12%, transparent)"
+                    : "transparent",
+                  color: opt === value ? "var(--brand-500)" : "var(--text-secondary)",
+                }}
+                onMouseEnter={(e) => {
+                  if (opt !== value) {
+                    (e.currentTarget as HTMLElement).style.backgroundColor = "var(--bg-elevated)";
+                    (e.currentTarget as HTMLElement).style.color = "var(--text-primary)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (opt !== value) {
+                    (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+                    (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)";
+                  }
+                }}
+              >
+                {renderLabel(opt)}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
 export default function CoursesPage() {
@@ -192,16 +291,11 @@ export default function CoursesPage() {
     e.preventDefault();
     setFormError(null);
 
-    // Determine final course_name + course_code
-    const finalName = selectedCourse
-      ? selectedCourse.course_name
-      : manualName.trim();
-    const finalCode = selectedCourse
-      ? selectedCourse.course_code
-      : manualCode.trim();
+    const finalName = manualName.trim();
+    const finalCode = manualCode.trim();
 
     if (!finalName || !finalCode) {
-      setFormError("Either select a course from the dropdown OR fill both name and code fields.");
+      setFormError("Please fill both name and code fields.");
       return;
     }
 
@@ -275,45 +369,23 @@ export default function CoursesPage() {
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.05 }}
-        className="flex flex-wrap gap-3"
+        className="flex flex-wrap gap-3 items-center"
       >
         {/* Degree selector */}
-        <div className="relative">
-          <select
-            value={degree}
-            onChange={(e) => setDegree(e.target.value as DegreeEnum)}
-            className="cursor-pointer appearance-none rounded-xl border pr-8 pl-4 py-2 text-sm font-semibold outline-none transition-all"
-            style={{
-              backgroundColor: "var(--bg-surface)",
-              borderColor: "var(--border-default)",
-              color: "var(--text-primary)",
-            }}
-          >
-            {DEGREES.map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-          <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
-        </div>
+        <CustomDropdown
+          value={degree}
+          options={DEGREES}
+          onChange={(val) => setDegree(val as DegreeEnum)}
+          renderLabel={(val) => String(val)}
+        />
 
         {/* Semester selector */}
-        <div className="relative">
-          <select
-            value={semester}
-            onChange={(e) => setSemester(Number(e.target.value))}
-            className="cursor-pointer appearance-none rounded-xl border pr-8 pl-4 py-2 text-sm font-semibold outline-none transition-all"
-            style={{
-              backgroundColor: "var(--bg-surface)",
-              borderColor: "var(--border-default)",
-              color: "var(--text-primary)",
-            }}
-          >
-            {SEMESTERS.map((s) => (
-              <option key={s} value={s}>Semester {s}</option>
-            ))}
-          </select>
-          <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
-        </div>
+        <CustomDropdown
+          value={semester}
+          options={SEMESTERS}
+          onChange={(val) => setSemester(Number(val))}
+          renderLabel={(val) => `Semester ${val}`}
+        />
 
         {/* Search */}
         <div
@@ -336,20 +408,10 @@ export default function CoursesPage() {
           )}
         </div>
 
-        {/* Refresh */}
-        <button
-          onClick={fetchCourses}
-          className="cursor-pointer flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-semibold transition-colors"
-          style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)", backgroundColor: "var(--bg-surface)" }}
-        >
-          <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
-          Refresh
-        </button>
-
         {/* Add Course */}
         <button
           onClick={() => setShowCreateForm((v) => !v)}
-          className="cursor-pointer flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold text-white"
+          className="cursor-pointer flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold text-white ml-auto sm:ml-0"
           style={{ background: "linear-gradient(135deg, var(--brand-600), var(--brand-500))" }}
         >
           <Plus size={13} />
@@ -390,65 +452,6 @@ export default function CoursesPage() {
                 </button>
               </div>
 
-              {/* Dropdown: select from existing courses in DB or use preloaded list */}
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                  Select from Existing Catalogue <span className="font-normal opacity-60">(optional)</span>
-                </label>
-                <div className="relative">
-                  <select
-                    value={selectedCourse ? JSON.stringify(selectedCourse) : ""}
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        const c = JSON.parse(e.target.value) as Course;
-                        setSelectedCourse(c);
-                        setManualName("");
-                        setManualCode("");
-                      } else {
-                        setSelectedCourse(null);
-                      }
-                    }}
-                    className="cursor-pointer w-full appearance-none rounded-xl border pr-8 pl-4 py-3 text-sm outline-none transition-all"
-                    style={{
-                      backgroundColor: "var(--bg-elevated)",
-                      borderColor: selectedCourse ? "var(--brand-500)" : "var(--border-default)",
-                      color: selectedCourse ? "var(--brand-500)" : "var(--text-primary)",
-                    }}
-                  >
-                    <option value="">— Choose a course from {degree} Sem {semester} —</option>
-                    {courses.map((c) => (
-                      <option key={c.course_code} value={JSON.stringify(c)}>
-                        {c.course_code} · {c.course_name}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown size={13} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
-                </div>
-                {selectedCourse && (
-                  <div className="mt-2 flex items-center gap-2 text-xs" style={{ color: "var(--brand-500)" }}>
-                    <CheckCircle2 size={12} />
-                    Selected: <strong>{selectedCourse.course_name}</strong> ({selectedCourse.course_code})
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCourse(null)}
-                      className="cursor-pointer ml-auto"
-                      style={{ color: "var(--text-muted)" }}
-                    >
-                      <X size={11} />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Divider */}
-              <div className="flex items-center gap-3">
-                <div className="h-px flex-1" style={{ backgroundColor: "var(--border-subtle)" }} />
-                <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-                  or enter manually
-                </span>
-                <div className="h-px flex-1" style={{ backgroundColor: "var(--border-subtle)" }} />
-              </div>
-
               {/* Manual inputs */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
@@ -464,12 +467,8 @@ export default function CoursesPage() {
                     type="text"
                     placeholder="e.g. Programming Fundamentals"
                     value={manualName}
-                    onChange={(e) => {
-                      setManualName(e.target.value);
-                      if (e.target.value) setSelectedCourse(null);
-                    }}
-                    disabled={!!selectedCourse}
-                    className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all disabled:opacity-40"
+                    onChange={(e) => setManualName(e.target.value)}
+                    className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all"
                     style={{
                       backgroundColor: "var(--bg-elevated)",
                       borderColor: "var(--border-default)",
@@ -498,12 +497,8 @@ export default function CoursesPage() {
                     type="text"
                     placeholder="e.g. COC-1075"
                     value={manualCode}
-                    onChange={(e) => {
-                      setManualCode(e.target.value.toUpperCase());
-                      if (e.target.value) setSelectedCourse(null);
-                    }}
-                    disabled={!!selectedCourse}
-                    className="w-full rounded-xl border px-4 py-3 font-mono text-sm outline-none transition-all disabled:opacity-40 uppercase"
+                    onChange={(e) => setManualCode(e.target.value.toUpperCase())}
+                    className="w-full rounded-xl border px-4 py-3 font-mono text-sm outline-none transition-all uppercase"
                     style={{
                       backgroundColor: "var(--bg-elevated)",
                       borderColor: "var(--border-default)",

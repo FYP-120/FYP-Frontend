@@ -8,7 +8,6 @@ import {
   Camera,
   Users,
   CalendarCheck,
-  BrainCircuit,
   BookOpen,
   LogOut,
   X,
@@ -26,7 +25,6 @@ const NAV_ITEMS = [
   { href: "/dashboard/students",   icon: Users,           label: "Student Management" },
   { href: "/dashboard/attendance", icon: CalendarCheck,   label: "Attendance Records" },
   { href: "/dashboard/courses",    icon: BookOpen,        label: "Courses"            },
-  { href: "/dashboard/sentiment",  icon: BrainCircuit,    label: "Sentiment Analysis" },
   { href: "/dashboard/identify",   icon: ScanFace,        label: "Identify Student"   },
 ] as const;
 

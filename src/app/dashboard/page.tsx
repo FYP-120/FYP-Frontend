@@ -7,13 +7,12 @@ import {
   Users,
   BookOpen,
   CalendarCheck,
-  BrainCircuit,
   Camera,
   ArrowRight,
   AlertCircle,
 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
-import { AttendanceAreaChart, SentimentPieChart } from "@/components/dashboard/Charts";
+import { AttendanceAreaChart } from "@/components/dashboard/Charts";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { API_ENDPOINTS } from "@/config/api";
 
@@ -41,13 +40,6 @@ const QUICK_ACTIONS = [
     label: "View Attendance",
     desc:  "Browse and filter attendance records by class & date",
     color: "var(--warning-500)",
-  },
-  {
-    href:  "/dashboard/sentiment",
-    icon:  BrainCircuit,
-    label: "Sentiment Report",
-    desc:  "Analyse class feedback with the RoBERTa pipeline",
-    color: "var(--danger-500)",
   },
 ] as const;
 
@@ -150,7 +142,7 @@ export default function OverviewPage() {
           title="Key Metrics"
           subtitle="Live figures from the FastAPI backend"
         />
-        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <MetricCard
             index={0}
             icon={Users}
@@ -159,11 +151,6 @@ export default function OverviewPage() {
             subLabel="Across all class collections"
             accentColor="var(--brand-500)"
             loading={loading}
-            /*
-             * DATA SOURCE: GET /students/list?limit=1
-             * Response field: { count: number }
-             * See: API_ENDPOINTS.students.list
-             */
           />
           <MetricCard
             index={1}
@@ -173,12 +160,6 @@ export default function OverviewPage() {
             subLabel="No list-classes endpoint yet"
             accentColor="var(--accent-500)"
             loading={loading}
-            /*
-             * DATA SOURCE: No dedicated endpoint exists.
-             * Future: GET /api/classes/list (to be added to backend).
-             * Currently derived from MongoDB collection names via the
-             * Jinja-injected window.AVAILABLE_CLASSES on the /camera page.
-             */
           />
           <MetricCard
             index={2}
@@ -198,27 +179,6 @@ export default function OverviewPage() {
             }
             accentColor="var(--warning-500)"
             loading={loading}
-            /*
-             * DATA SOURCE: GET /attendance/?date=YYYY-MM-DD&limit=200
-             * Response field: { records: AttendanceRecord[], count: number }
-             * Count "Present" records from response.records array.
-             * See: API_ENDPOINTS.attendance.list
-             */
-          />
-          <MetricCard
-            index={3}
-            icon={BrainCircuit}
-            label="Sentiment Index"
-            value={`${metrics.sentimentIndex}%`}
-            subLabel="Positive class engagement"
-            trend={{ value: 3, positive: true }}
-            accentColor="var(--danger-500)"
-            loading={loading}
-            /*
-             * DATA SOURCE: Mock data — RoBERTa sentiment endpoint not yet exposed.
-             * Future: GET /api/sentiment/summary
-             * Expected shape: { positive: %, neutral: %, negative: % }
-             */
           />
         </div>
       </section>
@@ -229,15 +189,8 @@ export default function OverviewPage() {
           title="Analytics"
           subtitle="Attendance trends and sentiment distribution"
         />
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-5">
-          {/* Area chart takes 3/5 on large screens */}
-          <div className="lg:col-span-3">
-            <AttendanceAreaChart data={attendanceTrend} />
-          </div>
-          {/* Pie chart takes 2/5 */}
-          <div className="lg:col-span-2">
-            <SentimentPieChart />
-          </div>
+        <div className="grid grid-cols-1 gap-5">
+          <AttendanceAreaChart data={attendanceTrend} />
         </div>
       </section>
 
@@ -247,7 +200,7 @@ export default function OverviewPage() {
           title="Quick Actions"
           subtitle="Navigate to key workflows"
         />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {QUICK_ACTIONS.map(({ href, icon: Icon, label, desc, color }, i) => (
             <motion.div
               key={href}

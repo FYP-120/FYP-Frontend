@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import {
   CalendarCheck,
   Search,
@@ -198,6 +199,7 @@ export default function AttendancePage() {
   }
 
   const presentCount = records.filter((r) => r.status === "Present").length;
+  const lateCount    = records.filter((r) => r.status === "Late").length;
   const absentCount  = records.filter((r) => r.status === "Absent").length;
   const rate = total > 0 ? Math.round((presentCount / total) * 100) : 0;
 
@@ -213,43 +215,115 @@ export default function AttendancePage() {
         </p>
       </motion.div>
 
-      {/* Summary row */}
-      <motion.div
-        initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.05 }}
-        className="grid grid-cols-3 gap-4"
+      {/* Metrics & Analytics section */}
+      <motion.div 
+        initial={{ opacity: 0, y: 14 }} 
+        animate={{ opacity: 1, y: 0 }} 
+        transition={{ duration: 0.4, delay: 0.05 }}
+        className="grid grid-cols-1 gap-5 xl:grid-cols-5"
       >
-        {[
-          { label: "Total", value: total, color: "var(--brand-500)" },
-          { label: "Present", value: presentCount, color: "var(--accent-500)" },
-          { label: "Absent", value: absentCount, color: "var(--danger-500)" },
-        ].map(({ label, value, color }) => (
-          <div
-            key={label}
-            className="rounded-2xl border p-4 text-center animate-pulse-once"
-            style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-subtle)" }}
-          >
-            <p className="text-2xl font-extrabold" style={{ color }}>{value}</p>
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</p>
+        {/* Left Side: Summary Metrics */}
+        <div className="xl:col-span-3 space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { label: "Present", value: presentCount, color: "var(--accent-500)" },
+              { label: "Late", value: lateCount, color: "var(--warning-500)" },
+              { label: "Absent", value: absentCount, color: "var(--danger-500)" },
+              { label: "Total", value: total, color: "var(--brand-500)" },
+            ].map(({ label, value, color }) => (
+              <div
+                key={label}
+                className="rounded-2xl border p-4 text-center"
+                style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-subtle)" }}
+              >
+                <p className="text-2xl font-extrabold" style={{ color }}>{value}</p>
+                <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>{label}</p>
+              </div>
+            ))}
           </div>
-        ))}
-      </motion.div>
 
-      {/* Attendance rate bar */}
-      <div>
-        <div className="mb-1.5 flex justify-between text-xs" style={{ color: "var(--text-secondary)" }}>
-          <span>Attendance Rate</span>
-          <span className="font-bold" style={{ color: "var(--accent-500)" }}>{rate}%</span>
+          {/* Attendance rate bar */}
+          <div className="rounded-2xl border p-4" style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-subtle)" }}>
+            <div className="mb-1.5 flex justify-between text-xs" style={{ color: "var(--text-secondary)" }}>
+              <span className="font-semibold">Attendance Rate</span>
+              <span className="font-bold" style={{ color: "var(--accent-500)" }}>{rate}%</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full" style={{ backgroundColor: "var(--bg-elevated)" }}>
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${rate}%` }}
+                transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                className="h-full rounded-full"
+                style={{ backgroundColor: "var(--accent-500)" }}
+              />
+            </div>
+          </div>
         </div>
-        <div className="h-2 overflow-hidden rounded-full" style={{ backgroundColor: "var(--bg-elevated)" }}>
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${rate}%` }}
-            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-            className="h-full rounded-full"
-            style={{ backgroundColor: "var(--accent-500)" }}
-          />
+
+        {/* Right Side: Pie Chart */}
+        <div className="xl:col-span-2 rounded-2xl border p-4 flex flex-col justify-between" style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-subtle)" }}>
+          <div className="mb-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+              Attendance Breakdown
+            </h3>
+            <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+              Based on the filtered records below
+            </p>
+          </div>
+          {total === 0 ? (
+            <div className="flex-1 flex items-center justify-center text-xs" style={{ color: "var(--text-muted)" }}>
+              No data to visualize
+            </div>
+          ) : (
+            <div className="flex items-center justify-around h-[120px]">
+              <div className="h-[120px] w-[120px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: "Present", value: presentCount, color: "#10b981" },
+                        { name: "Late", value: lateCount, color: "#f59e0b" },
+                        { name: "Absent", value: absentCount, color: "#f43f5e" },
+                      ].filter(d => d.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={25}
+                      outerRadius={45}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {[
+                        { name: "Present", value: presentCount, color: "#10b981" },
+                        { name: "Late", value: lateCount, color: "#f59e0b" },
+                        { name: "Absent", value: absentCount, color: "#f43f5e" },
+                      ].filter(d => d.value > 0).map((entry) => (
+                        <Cell key={entry.name} fill={entry.color} stroke="transparent" />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-subtle)", borderRadius: "12px", fontSize: "10px" }}
+                      itemStyle={{ fontSize: "10px" }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex flex-col gap-1.5 justify-center">
+                {[
+                  { label: "Present", count: presentCount, percent: total > 0 ? Math.round((presentCount / total) * 100) : 0, color: "var(--accent-500)" },
+                  { label: "Late", count: lateCount, percent: total > 0 ? Math.round((lateCount / total) * 100) : 0, color: "var(--warning-500)" },
+                  { label: "Absent", count: absentCount, percent: total > 0 ? Math.round((absentCount / total) * 100) : 0, color: "var(--danger-500)" },
+                ].map(({ label, count, percent, color }) => (
+                  <div key={label} className="flex items-center gap-2 text-[10px]">
+                    <div className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+                    <span className="font-medium min-w-[50px]" style={{ color: "var(--text-secondary)" }}>{label}</span>
+                    <span className="font-bold" style={{ color: "var(--text-primary)" }}>{count} ({percent}%)</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      </motion.div>
 
       {/* Filters */}
       <motion.div

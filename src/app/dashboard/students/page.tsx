@@ -2,17 +2,18 @@
 
 import { useState, useEffect, useCallback, useRef, useId } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import * as XLSX from "xlsx";
 import {
   Users, Plus, Search, RefreshCw, AlertCircle,
   ChevronRight, Camera, Trash2, X, School,
-  CheckCircle2, Upload, FolderPlus, Download, ScanFace,
+  CheckCircle2, Upload, FolderPlus, Download,
 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { useApiClient } from "@/hooks/useApiClient";
 import { getStoredToken } from "@/hooks/useAuth";
 import { API_ENDPOINTS, API_BASE_URL } from "@/config/api";
-import type { Student, StudentsListResponse, StudentRegisterResponse, AttendanceRecord, AttendanceListResponse, IdentifyResponse } from "@/types/api";
+import type { Student, StudentsListResponse, StudentRegisterResponse, AttendanceRecord, AttendanceListResponse, Course } from "@/types/api";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Animation helpers
@@ -148,6 +149,57 @@ function ClassCard({
           </p>
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
             Click to load students
+          </p>
+        </div>
+      </div>
+      <ChevronRight size={16} style={{ color: "var(--text-muted)" }} />
+    </motion.button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CourseCard — clickable course selector card
+// ─────────────────────────────────────────────────────────────────────────────
+function CourseCard({
+  course,
+  onSelect,
+}: {
+  course: Course;
+  onSelect: (course: Course) => void;
+}) {
+  return (
+    <motion.button
+      whileHover={{ y: -3, scale: 1.02 }}
+      whileTap={{ scale: 0.97 }}
+      onClick={() => onSelect(course)}
+      className="flex items-center justify-between gap-3 rounded-2xl border p-4 text-left transition-all w-full"
+      style={{
+        backgroundColor: "var(--bg-surface)",
+        borderColor: "var(--border-subtle)",
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.borderColor =
+          "color-mix(in srgb, var(--brand-500) 40%, transparent)";
+        (e.currentTarget as HTMLElement).style.boxShadow = "var(--shadow-md)";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.borderColor = "var(--border-subtle)";
+        (e.currentTarget as HTMLElement).style.boxShadow = "none";
+      }}
+    >
+      <div className="flex items-center gap-3">
+        <div
+          className="flex h-10 w-10 items-center justify-center rounded-xl text-xs font-bold text-white uppercase"
+          style={{ background: "linear-gradient(135deg, var(--brand-600), var(--brand-400))" }}
+        >
+          {course.course_code.slice(0, 3)}
+        </div>
+        <div>
+          <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+            {course.course_name}
+          </p>
+          <p className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
+            {course.course_code}
           </p>
         </div>
       </div>
@@ -567,67 +619,31 @@ function DeleteClassModal({
   );
 }
 
+
+
 // ─────────────────────────────────────────────────────────────────────────────
-// IdentifyPanel — upload one image and call /students/identify
+// DeleteAttendanceModal — confirmation modal for deleting an attendance record
 // ─────────────────────────────────────────────────────────────────────────────
-function IdentifyPanel({
+function DeleteAttendanceModal({
   isOpen,
   onClose,
+  studentName,
+  courseName,
+  onConfirm,
+  isDeleting,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  studentName: string;
+  courseName: string;
+  onConfirm: () => void;
+  isDeleting: boolean;
 }) {
-  const { request } = useApiClient();
-  const { toast } = useToast();
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [result, setResult] = useState<IdentifyResponse | null>(null);
-  const [identifying, setIdentifying] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isOpen) {
-      setFile(null);
-      setPreview(null);
-      setResult(null);
-      setError(null);
-    }
-  }, [isOpen]);
-
-  function handleFile(f: File | null) {
-    setFile(f);
-    setResult(null);
-    setError(null);
-    if (f) setPreview(URL.createObjectURL(f));
-    else setPreview(null);
-  }
-
-  async function handleIdentify() {
-    if (!file) return;
-    setIdentifying(true);
-    setError(null);
-    setResult(null);
-    try {
-      const fd = new FormData();
-      fd.append("file", file, file.name);
-      const data = await request<IdentifyResponse>(API_ENDPOINTS.students.identify, {
-        method: "POST",
-        body: fd,
-      });
-      setResult(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Identification failed");
-    } finally {
-      setIdentifying(false);
-    }
-  }
-
   return (
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          {/* Backdrop */}
           <motion.div
             key="backdrop"
             initial={{ opacity: 0 }}
@@ -635,177 +651,80 @@ function IdentifyPanel({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="absolute inset-0"
-            style={{ backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+            style={{ backgroundColor: "rgba(0, 0, 0, 0.6)", backdropFilter: "blur(4px)" }}
             onClick={onClose}
           />
+
+          {/* Central warning card */}
           <motion.div
-            key="panel"
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ type: "spring", stiffness: 380, damping: 28 }}
-            className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border"
+            key="warning-card"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 350, damping: 25 }}
+            className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border p-6"
             style={{
               backgroundColor: "var(--bg-surface)",
               borderColor: "var(--border-subtle)",
               boxShadow: "var(--shadow-xl)",
             }}
           >
-            {/* Header */}
-            <div
-              className="flex items-center justify-between border-b px-6 py-4"
-              style={{ borderColor: "var(--border-subtle)" }}
-            >
-              <div className="flex items-center gap-2.5">
-                <div
-                  className="flex h-9 w-9 items-center justify-center rounded-xl"
-                  style={{ backgroundColor: "color-mix(in srgb, var(--brand-500) 12%, transparent)", color: "var(--brand-500)" }}
-                >
-                  <ScanFace size={18} />
-                </div>
-                <div>
-                  <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Identify Student</p>
-                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>Upload a face photo to find the student</p>
-                </div>
-              </div>
-              <button
-                onClick={onClose}
-                className="cursor-pointer rounded-lg p-1.5"
-                style={{ color: "var(--text-muted)" }}
+            <div className="flex flex-col items-center text-center gap-4">
+              {/* Warning Icon with pulse effect */}
+              <div
+                className="flex h-14 w-14 items-center justify-center rounded-2xl relative"
+                style={{
+                  backgroundColor: "color-mix(in srgb, var(--danger-500) 10%, transparent)",
+                  color: "var(--danger-500)",
+                }}
               >
-                <X size={15} />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-5">
-              {/* Upload slot */}
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                  Face Photo
-                </label>
-                <motion.div
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
-                  onClick={() => !file && fileRef.current?.click()}
-                  className="relative flex h-40 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed transition-colors"
-                  style={{
-                    borderColor: file ? "var(--brand-500)" : "var(--border-default)",
-                    backgroundColor: file ? "transparent" : "var(--bg-elevated)",
-                  }}
-                >
-                  {preview ? (
-                    <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={preview} alt="Preview" className="h-full w-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); handleFile(null); }}
-                        className="absolute right-2 top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full text-white shadow"
-                        style={{ backgroundColor: "var(--danger-500)" }}
-                      >
-                        <X size={11} />
-                      </button>
-                    </>
-                  ) : (
-                    <div className="flex flex-col items-center gap-2 text-center">
-                      <Camera size={28} style={{ color: "var(--text-muted)" }} />
-                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>Click to upload face photo</p>
-                    </div>
-                  )}
-                </motion.div>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  onChange={(e) => { handleFile(e.target.files?.[0] ?? null); e.target.value = ""; }}
-                />
+                <div className="absolute inset-0 rounded-2xl animate-ping opacity-25" style={{ backgroundColor: "var(--danger-500)" }} />
+                <AlertCircle size={28} className="relative z-10" />
               </div>
 
-              {/* Error */}
-              <AnimatePresence>
-                {error && (
-                  <motion.div
-                    key="err"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="flex items-start gap-2 overflow-hidden rounded-xl border px-4 py-3 text-xs"
-                    style={{
-                      backgroundColor: "color-mix(in srgb, var(--danger-500) 8%, transparent)",
-                      borderColor: "color-mix(in srgb, var(--danger-500) 25%, transparent)",
-                      color: "var(--danger-500)",
-                    }}
-                  >
-                    <AlertCircle size={13} className="mt-0.5 flex-shrink-0" />
-                    {error}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              {/* Title & Description */}
+              <div className="space-y-2">
+                <h3 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>
+                  Delete Attendance Record
+                </h3>
+                <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                  Are you sure you want to delete today's attendance record for <strong className="font-semibold text-primary">{studentName}</strong> in the course <strong>{courseName}</strong>?
+                </p>
+                <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+                  This will remove the current status and reset their attendance to <span className="text-rose-500">Absent</span>.
+                </p>
+              </div>
 
-              {/* Result card */}
-              <AnimatePresence>
-                {result && (
-                  <motion.div
-                    key="result"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    className="rounded-2xl border p-4 space-y-2"
-                    style={{
-                      backgroundColor: "color-mix(in srgb, var(--accent-500) 6%, transparent)",
-                      borderColor: "color-mix(in srgb, var(--accent-500) 25%, transparent)",
-                    }}
-                  >
-                    <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: "var(--accent-500)" }}>
-                      <CheckCircle2 size={14} /> Student Identified
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-                      <span className="font-semibold" style={{ color: "var(--text-muted)" }}>Name</span>
-                      <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{result.name}</span>
-                      {result.reg_number && <>
-                        <span className="font-semibold" style={{ color: "var(--text-muted)" }}>Reg No.</span>
-                        <span className="font-mono" style={{ color: "var(--text-secondary)" }}>{result.reg_number}</span>
-                      </>}
-                      {result.class_name && <>
-                        <span className="font-semibold" style={{ color: "var(--text-muted)" }}>Class</span>
-                        <span style={{ color: "var(--text-secondary)" }}>{result.class_name}</span>
-                      </>}
-                      {result.confidence != null && <>
-                        <span className="font-semibold" style={{ color: "var(--text-muted)" }}>Confidence</span>
-                        <span style={{ color: "var(--text-secondary)" }}>{Math.round(result.confidence * 100)}%</span>
-                      </>}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Action buttons */}
-              <div className="flex gap-3 border-t pt-4" style={{ borderColor: "var(--border-subtle)" }}>
+              {/* Action Buttons */}
+              <div className="flex w-full gap-3 mt-4">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="cursor-pointer flex-1 rounded-xl border py-3 text-sm font-semibold"
-                  style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)", backgroundColor: "var(--bg-surface)" }}
+                  disabled={isDeleting}
+                  className="flex-1 rounded-xl border py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+                  style={{
+                    borderColor: "var(--border-default)",
+                    color: "var(--text-secondary)",
+                    backgroundColor: "var(--bg-surface)",
+                  }}
                 >
-                  Close
+                  Cancel
                 </button>
                 <motion.button
                   type="button"
-                  disabled={!file || identifying}
-                  whileHover={{ scale: !file || identifying ? 1 : 1.02 }}
-                  whileTap={{ scale: !file || identifying ? 1 : 0.97 }}
-                  onClick={handleIdentify}
-                  className="cursor-pointer flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white disabled:opacity-50"
-                  style={{
-                    background: "linear-gradient(135deg, var(--brand-600), var(--brand-500))",
-                    boxShadow: "0 4px 12px color-mix(in srgb, var(--brand-500) 30%, transparent)",
-                  }}
+                  onClick={onConfirm}
+                  disabled={isDeleting}
+                  whileHover={{ scale: isDeleting ? 1 : 1.02 }}
+                  whileTap={{ scale: isDeleting ? 1 : 0.98 }}
+                  className="flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 transition-colors shadow-sm"
                 >
-                  {identifying ? (
-                    <><RefreshCw size={14} className="animate-spin" /> Identifying…</>
+                  {isDeleting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <RefreshCw size={14} className="animate-spin" />
+                      Deleting…
+                    </span>
                   ) : (
-                    <><ScanFace size={14} /> Identify</>
+                    "Delete Record"
                   )}
                 </motion.button>
               </div>
@@ -816,6 +735,8 @@ function IdentifyPanel({
     </AnimatePresence>
   );
 }
+
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main page
@@ -840,6 +761,8 @@ export default function StudentsPage() {
   const [searchQuery,     setSearchQuery]     = useState("");
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [downloadingReport, setDownloadingReport] = useState(false);
+  const [classCourses, setClassCourses] = useState<Course[]>([]);
+  const [selectedAttendanceCourse, setSelectedAttendanceCourse] = useState<Course | null>(null);
 
   // ── Modal state ──
   const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -848,13 +771,32 @@ export default function StudentsPage() {
   const [deleting, setDeleting] = useState(false);
   const [classToDelete, setClassToDelete] = useState<string | null>(null);
   const [deletingClass, setDeletingClass] = useState(false);
-  const [showIdentifyPanel, setShowIdentifyPanel] = useState(false);
+
+  // ── Course Attendance Actions state ──
+  const [attendanceEditStudent, setAttendanceEditStudent] = useState<any | null>(null);
+  const [editAttendanceStatus, setEditAttendanceStatus] = useState<string>("Absent");
+  const [submittingAttendanceEdit, setSubmittingAttendanceEdit] = useState(false);
+  const [attendanceDeleteStudent, setAttendanceDeleteStudent] = useState<any | null>(null);
+  const [deletingAttendanceRecord, setDeletingAttendanceRecord] = useState(false);
   
   // ── Edit Profile state ──
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editStudentName, setEditStudentName] = useState("");
   const [editStudentReg, setEditStudentReg] = useState("");
   const [submittingEditStudent, setSubmittingEditStudent] = useState(false);
+
+  // ── Filtered student list (client-side search) ──
+  const filtered = searchQuery.trim()
+    ? students.filter(
+        (s) =>
+          s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          s.reg_number.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : students;
+
+  const filteredClasses = classFilter.trim()
+    ? classes.filter((c) => c.toLowerCase().includes(classFilter.toLowerCase()))
+    : classes;
 
   // ─────────────────────────────────────────────────────────────────────────
   // Fetch available classes
@@ -897,6 +839,7 @@ export default function StudentsPage() {
     setStudentsError(null);
     setStudents([]);
     setAttendanceRecords([]);
+    setClassCourses([]);
     try {
       const data = await request<StudentsListResponse>(
         API_ENDPOINTS.students.list,
@@ -912,6 +855,17 @@ export default function StudentsPage() {
         setAttendanceRecords(attData.records);
       } catch (attErr) {
         console.error("Failed to load attendance records:", attErr);
+      }
+
+      try {
+        const coursesData = await request<Course[]>(
+          API_ENDPOINTS.subjects.list,
+          { params: { class_name: className } }
+        );
+        setClassCourses(Array.isArray(coursesData) ? coursesData : []);
+      } catch (err) {
+        console.error("Failed to load class courses:", err);
+        setClassCourses([]);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to load students";
@@ -1003,6 +957,84 @@ export default function StudentsPage() {
     }
   }, [activeStudentModal, editStudentName, editStudentReg, selectedClass, request, toast, fetchStudents]);
 
+  useEffect(() => {
+    if (attendanceEditStudent) {
+      setEditAttendanceStatus(attendanceEditStudent.attendance || "Absent");
+    }
+  }, [attendanceEditStudent]);
+
+  const handleSaveAttendanceEdit = useCallback(async (student: any, status: string) => {
+    if (!selectedClass || !selectedAttendanceCourse) return;
+    setSubmittingAttendanceEdit(true);
+    try {
+      if (status === "Absent") {
+        if (student.attendanceRecordId) {
+          // Delete existing record to mark Absent
+          await request(`${API_BASE_URL}/attendance/${student.student_id}`, {
+            method: "DELETE",
+            params: {
+              class_name: selectedClass,
+              course_name: selectedAttendanceCourse.course_name,
+              course_code: selectedAttendanceCourse.course_code
+            }
+          });
+        }
+        // If no record exists, it is already Absent
+      } else {
+        if (student.attendanceRecordId) {
+          // Update existing record
+          await request(API_ENDPOINTS.attendance.byId(student.attendanceRecordId), {
+            method: "PATCH",
+            body: { status },
+            params: { class_name: selectedClass }
+          });
+        } else {
+          // Create new record
+          await request(API_ENDPOINTS.attendance.mark, {
+            method: "POST",
+            body: {
+              student_id: student.student_id,
+              name: student.name,
+              status: status,
+              course_name: selectedAttendanceCourse.course_name,
+              course_code: selectedAttendanceCourse.course_code
+            },
+            params: { class_name: selectedClass }
+          });
+        }
+      }
+      toast(`✓ Attendance updated to ${status} for ${student.name}`, "success");
+      setAttendanceEditStudent(null);
+      fetchStudents(selectedClass);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to update attendance", "error");
+    } finally {
+      setSubmittingAttendanceEdit(false);
+    }
+  }, [selectedClass, selectedAttendanceCourse, request, toast, fetchStudents]);
+
+  const handleConfirmDeleteAttendance = useCallback(async () => {
+    if (!attendanceDeleteStudent || !selectedClass || !selectedAttendanceCourse) return;
+    setDeletingAttendanceRecord(true);
+    try {
+      await request(`${API_BASE_URL}/attendance/${attendanceDeleteStudent.student_id}`, {
+        method: "DELETE",
+        params: {
+          class_name: selectedClass,
+          course_name: selectedAttendanceCourse.course_name,
+          course_code: selectedAttendanceCourse.course_code
+        }
+      });
+      toast(`✓ Attendance record deleted for ${attendanceDeleteStudent.name}`, "success");
+      setAttendanceDeleteStudent(null);
+      fetchStudents(selectedClass);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to delete attendance record", "error");
+    } finally {
+      setDeletingAttendanceRecord(false);
+    }
+  }, [attendanceDeleteStudent, selectedClass, selectedAttendanceCourse, request, toast, fetchStudents]);
+
   function selectClass(name: string) {
     setSelectedClass(name);
     setSearchQuery("");
@@ -1015,6 +1047,8 @@ export default function StudentsPage() {
     setStudentsError(null);
     setSearchQuery("");
     setAttendanceRecords([]);
+    setClassCourses([]);
+    setSelectedAttendanceCourse(null);
   }
 
   const getStudentAttendanceStatus = useCallback((studentId: string, records: AttendanceRecord[]) => {
@@ -1045,6 +1079,35 @@ export default function StudentsPage() {
     });
     
     return match ? "Present" : "Absent";
+  }, []);
+
+  const getStudentCourseRecord = useCallback((studentId: string, records: AttendanceRecord[], courseCode: string) => {
+    const todayLocalStr = new Date().toLocaleDateString('en-CA'); // "YYYY-MM-DD"
+    const todayUTCStr = new Date().toISOString().split('T')[0]; // "YYYY-MM-DD"
+    
+    const isToday = (dateStr: string) => {
+      if (!dateStr) return false;
+      const datePart = dateStr.split('T')[0];
+      return datePart === todayLocalStr || datePart === todayUTCStr;
+    };
+
+    const cleanStudentId = studentId.replace(/^0+/, "");
+    
+    return records.find(r => {
+      if (!isToday(r.date)) return false;
+      if (r.course_code !== courseCode) return false;
+      
+      const recordId = r.student_id;
+      if (recordId === studentId) return true;
+      
+      const cleanRecordId = recordId.replace(/^0+/, "");
+      const rMatch = recordId.match(/.*-(\d+)$/);
+      const sMatch = studentId.match(/.*-(\d+)$/);
+      const rSuffix = rMatch ? rMatch[1].replace(/^0+/, "") : cleanRecordId;
+      const sSuffix = sMatch ? sMatch[1].replace(/^0+/, "") : cleanStudentId;
+      
+      return rSuffix === sSuffix && rSuffix !== "";
+    });
   }, []);
 
   const handleDownloadReport = useCallback(async () => {
@@ -1081,6 +1144,48 @@ export default function StudentsPage() {
       setDownloadingReport(false);
     }
   }, [selectedClass, toast]);
+
+  const handleDownloadCourseReport = useCallback(() => {
+    if (!selectedClass || !selectedAttendanceCourse) return;
+    try {
+      const data = filtered.map(s => {
+        const attRecord = getStudentCourseRecord(s.student_id, attendanceRecords, selectedAttendanceCourse.course_code);
+        return {
+          reg_number: s.reg_number,
+          name: s.name,
+          attendance: attRecord ? attRecord.status : "Absent"
+        };
+      });
+
+      const excelData = data.map(s => ({
+        "Registration Number": s.reg_number,
+        "Name": s.name,
+        "Status": s.attendance,
+        "Date": new Date().toLocaleDateString('en-CA')
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Course Attendance");
+
+      const maxRegLen = Math.max(...excelData.map(d => d["Registration Number"]?.length || 0), 20);
+      const maxNameLen = Math.max(...excelData.map(d => d["Name"]?.length || 0), 25);
+      worksheet["!cols"] = [
+        { wch: maxRegLen },
+        { wch: maxNameLen },
+        { wch: 15 },
+        { wch: 15 }
+      ];
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      const filename = `attendance_${selectedClass}_${selectedAttendanceCourse.course_code}_${dateStr}.xlsx`;
+      XLSX.writeFile(workbook, filename);
+
+      toast("✓ Course attendance report downloaded successfully", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to download course report", "error");
+    }
+  }, [selectedClass, selectedAttendanceCourse, filtered, getStudentCourseRecord, attendanceRecords, toast]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Create new class
@@ -1153,19 +1258,6 @@ export default function StudentsPage() {
   }, [classToDelete, request, toast, selectedClass]);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Filtered student list (client-side search)
-  // ─────────────────────────────────────────────────────────────────────────
-  const filtered = searchQuery.trim()
-    ? students.filter(
-        (s) =>
-          s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          s.reg_number.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : students;
-
-  const filteredClasses = classFilter.trim()
-    ? classes.filter((c) => c.toLowerCase().includes(classFilter.toLowerCase()))
-    : classes;
 
   // ─────────────────────────────────────────────────────────────────────────
   // Render — Class Selection Phase
@@ -1208,14 +1300,7 @@ export default function StudentsPage() {
               style={{ color: "var(--text-primary)" }}
             />
           </div>
-          <button
-            onClick={fetchClasses}
-            className="flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-semibold"
-            style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)", backgroundColor: "var(--bg-surface)" }}
-          >
-            <RefreshCw size={13} className={loadingClasses ? "animate-spin" : ""} />
-            Refresh
-          </button>
+
           <button
             onClick={() => setShowCreateForm((v) => !v)}
             className="flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold text-white"
@@ -1341,7 +1426,72 @@ export default function StudentsPage() {
   const presentStudents = studentsWithAttendance.filter(s => s.attendance === "Present");
   const registeredStudents = studentsWithAttendance;
 
-  const renderStudentTable = (studentList: typeof registeredStudents) => {
+
+
+  const courseStudentsWithAttendance = selectedAttendanceCourse
+    ? filtered.map(s => {
+        const attRecord = getStudentCourseRecord(s.student_id, attendanceRecords, selectedAttendanceCourse.course_code);
+        return {
+          ...s,
+          attendance: attRecord ? attRecord.status : "Absent",
+          attendanceRecordId: attRecord ? attRecord._id : null
+        };
+      })
+    : [];
+  const coursePresentCount = courseStudentsWithAttendance.filter(s => s.attendance === "Present").length;
+
+  // Handler to update or mark attendance status
+  const handleMarkAttendance = async (student: any, newStatus: string) => {
+    if (!selectedClass || !selectedAttendanceCourse) return;
+    try {
+      if (student.attendanceRecordId) {
+        // Update existing record
+        await request(API_ENDPOINTS.attendance.byId(student.attendanceRecordId), {
+          method: "PATCH",
+          body: { status: newStatus },
+          params: { class_name: selectedClass }
+        });
+      } else {
+        // Create new record
+        await request(API_ENDPOINTS.attendance.mark, {
+          method: "POST",
+          body: {
+            student_id: student.student_id,
+            name: student.name,
+            status: newStatus,
+            course_name: selectedAttendanceCourse.course_name,
+            course_code: selectedAttendanceCourse.course_code
+          },
+          params: { class_name: selectedClass }
+        });
+      }
+      toast(`✓ Attendance set to ${newStatus} for ${student.name}`, "success");
+      fetchStudents(selectedClass);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to update attendance", "error");
+    }
+  };
+
+  // Handler to delete attendance record (mark Absent)
+  const handleDeleteAttendanceRecord = async (student: any) => {
+    if (!selectedClass || !selectedAttendanceCourse) return;
+    try {
+      await request(`${API_BASE_URL}/attendance/${student.student_id}`, {
+        method: "DELETE",
+        params: {
+          class_name: selectedClass,
+          course_name: selectedAttendanceCourse.course_name,
+          course_code: selectedAttendanceCourse.course_code
+        }
+      });
+      toast(`✓ Attendance record removed for ${student.name}`, "success");
+      fetchStudents(selectedClass);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to delete attendance record", "error");
+    }
+  };
+
+  const renderStudentTable = (studentList: any[], isRegistry: boolean = false, showImages: boolean = true) => {
     return (
       <div className="overflow-x-auto">
         <table className="w-full">
@@ -1352,7 +1502,12 @@ export default function StudentsPage() {
                 backgroundColor: "var(--bg-elevated)",
               }}
             >
-              {["Student", "Registration No.", "Images", "Attendance", "Actions"].map((h) => (
+              {(isRegistry 
+                ? ["Student", "Registration No.", "Actions"]
+                : showImages 
+                  ? ["Student", "Registration No.", "Images", "Attendance", "Actions"]
+                  : ["Student", "Registration No.", "Attendance", "Actions"]
+              ).map((h) => (
                 <th
                   key={h}
                   className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider"
@@ -1420,85 +1575,128 @@ export default function StudentsPage() {
                 </td>
 
                 {/* Image count */}
-                <td className="px-5 py-4">
-                  <div className="flex items-center gap-1.5">
-                    {[...Array(5)].map((_, idx) => (
-                      <div
-                        key={idx}
-                        className="h-2 w-2 rounded-full"
-                        style={{
-                          backgroundColor:
-                            idx < (student.image_paths?.length ?? 0)
-                              ? "var(--accent-500)"
-                              : "var(--bg-muted)",
-                        }}
-                      />
-                    ))}
-                    <span className="ml-1 text-xs" style={{ color: "var(--text-muted)" }}>
-                      {student.image_paths?.length ?? 0}/5
-                    </span>
-                  </div>
-                </td>
-
-                {/* Attendance status badge */}
-                <td className="px-5 py-4">
-                  {(() => {
-                    const status = student.attendance;
-                    const isPresent = status === "Present";
-                    return (
-                      <span
-                        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
-                        style={{
-                          backgroundColor: isPresent
-                            ? "color-mix(in srgb, var(--success-500, #10b981) 12%, transparent)"
-                            : "color-mix(in srgb, var(--danger-500, #ef4444) 12%, transparent)",
-                          color: isPresent ? "var(--success-600, #059669)" : "var(--danger-600, #dc2626)",
-                        }}
-                      >
-                        <span
-                          className="h-1.5 w-1.5 rounded-full animate-pulse"
+                {!isRegistry && showImages && (
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-1.5">
+                      {[...Array(5)].map((_, idx) => (
+                        <div
+                          key={idx}
+                          className="h-2 w-2 rounded-full"
                           style={{
-                            backgroundColor: isPresent ? "var(--success-500, #10b981)" : "var(--danger-500, #ef4444)",
+                            backgroundColor:
+                              idx < (student.image_paths?.length ?? 0)
+                                ? "var(--accent-500)"
+                                : "var(--bg-muted)",
                           }}
                         />
-                        {status}
+                      ))}
+                      <span className="ml-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                        {student.image_paths?.length ?? 0}/5
                       </span>
-                    );
-                  })()}
-                </td>
+                    </div>
+                  </td>
+                )}
+
+                {/* Attendance status badge */}
+                {!isRegistry && (
+                  <td className="px-5 py-4">
+                    {(() => {
+                      const status = student.attendance;
+                      const isPresent = status === "Present";
+                      return (
+                        <span
+                          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
+                          style={{
+                            backgroundColor: isPresent
+                              ? "color-mix(in srgb, var(--success-500, #10b981) 12%, transparent)"
+                              : "color-mix(in srgb, var(--danger-500, #ef4444) 12%, transparent)",
+                            color: isPresent ? "var(--success-600, #059669)" : "var(--danger-600, #dc2626)",
+                          }}
+                        >
+                          <span
+                            className="h-1.5 w-1.5 rounded-full animate-pulse"
+                            style={{
+                              backgroundColor: isPresent ? "var(--success-500, #10b981)" : "var(--danger-500, #ef4444)",
+                            }}
+                          />
+                          {status}
+                        </span>
+                      );
+                    })()}
+                  </td>
+                )}
 
                 {/* Actions */}
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setActiveStudentModal(student)}
-                      className="cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
-                      style={{ color: "var(--brand-500)" }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLElement).style.backgroundColor =
-                          "color-mix(in srgb, var(--brand-500) 10%, transparent)";
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
-                      }}
-                    >
-                      View →
-                    </button>
-                    <button
-                      onClick={() => setStudentToDelete(student)}
-                      className="cursor-pointer rounded-lg p-1.5 transition-colors"
-                      style={{ color: "var(--danger-500)" }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLElement).style.backgroundColor =
-                          "color-mix(in srgb, var(--danger-500) 10%, transparent)";
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
-                      }}
-                      title="Delete Student"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {isRegistry ? (
+                      <>
+                        <button
+                          onClick={() => setActiveStudentModal(student)}
+                          className="cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
+                          style={{ color: "var(--brand-500)" }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor =
+                              "color-mix(in srgb, var(--brand-500) 10%, transparent)";
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+                          }}
+                        >
+                          View →
+                        </button>
+                        <button
+                          onClick={() => setStudentToDelete(student)}
+                          className="cursor-pointer rounded-lg p-1.5 transition-colors"
+                          style={{ color: "var(--danger-500)" }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor =
+                              "color-mix(in srgb, var(--danger-500) 10%, transparent)";
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+                          }}
+                          title="Delete Student"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => setAttendanceEditStudent(student)}
+                          className="cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
+                          style={{ color: "var(--brand-500)" }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor =
+                              "color-mix(in srgb, var(--brand-500) 10%, transparent)";
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+                          }}
+                        >
+                          View →
+                        </button>
+                        <button
+                          disabled={student.attendance === "Absent" && !student.attendanceRecordId}
+                          onClick={() => setAttendanceDeleteStudent(student)}
+                          className="cursor-pointer rounded-lg p-1.5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          style={{ color: "var(--danger-500)" }}
+                          onMouseEnter={(e) => {
+                            if (student.attendance !== "Absent" || student.attendanceRecordId) {
+                              (e.currentTarget as HTMLElement).style.backgroundColor =
+                                "color-mix(in srgb, var(--danger-500) 10%, transparent)";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+                          }}
+                          title="Delete Attendance Record"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </motion.tr>
@@ -1554,22 +1752,8 @@ export default function StudentsPage() {
             )}
             Download Attendance Report
           </button>
-          <button
-            onClick={() => setShowIdentifyPanel(true)}
-            className="cursor-pointer flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-semibold transition-colors"
-            style={{ borderColor: "color-mix(in srgb, var(--brand-500) 30%, transparent)", color: "var(--brand-500)", backgroundColor: "color-mix(in srgb, var(--brand-500) 6%, transparent)" }}
-          >
-            <ScanFace size={13} />
-            Identify Student
-          </button>
-          <button
-            onClick={() => fetchStudents(selectedClass)}
-            className="cursor-pointer flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-semibold"
-            style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)", backgroundColor: "var(--bg-surface)" }}
-          >
-            <RefreshCw size={13} className={loadingStudents ? "animate-spin" : ""} />
-            Refresh
-          </button>
+
+
           <motion.button
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
@@ -1690,31 +1874,89 @@ export default function StudentsPage() {
               className="overflow-hidden rounded-2xl border"
               style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-subtle)" }}
             >
-              {renderStudentTable(registeredStudents)}
+              {renderStudentTable(registeredStudents, true)}
             </motion.div>
           </div>
 
-          {/* Section 2: Today's Attendance (Present) */}
+          {/* Section 2: Today's Attendance (Course-wise) */}
           <div className="space-y-3">
-            <h2 className="text-sm font-bold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
-              Today's Attendance (Present) ({presentStudents.length})
-            </h2>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.35, delay: 0.15 }}
-              className="overflow-hidden rounded-2xl border"
-              style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-subtle)" }}
-            >
-              {presentStudents.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                  <Users size={20} style={{ color: "var(--text-muted)", opacity: 0.5 }} />
-                  No students marked present today yet.
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+                {selectedAttendanceCourse 
+                  ? `Today's Attendance: ${selectedAttendanceCourse.course_name} (${selectedAttendanceCourse.course_code})`
+                  : "Today's Attendance by Course"
+                }
+              </h2>
+              {selectedAttendanceCourse && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleDownloadCourseReport}
+                    className="cursor-pointer flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold hover:bg-zinc-50/10 transition-colors"
+                    style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)", backgroundColor: "var(--bg-surface)" }}
+                  >
+                    <Download size={13} />
+                    Download Attendance Excel
+                  </button>
+                  <button
+                    onClick={() => setSelectedAttendanceCourse(null)}
+                    className="cursor-pointer text-xs font-semibold px-3 py-1.5 rounded-xl border hover:bg-zinc-50/10 transition-colors"
+                    style={{ borderColor: "var(--border-default)", color: "var(--brand-500)" }}
+                  >
+                    ← Back to Courses
+                  </button>
                 </div>
-              ) : (
-                renderStudentTable(presentStudents)
               )}
-            </motion.div>
+            </div>
+
+            {!selectedAttendanceCourse ? (
+              // Course Cards Grid
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.35 }}
+                className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+              >
+                {classCourses.length === 0 ? (
+                  <div className="col-span-full flex flex-col items-center justify-center py-12 gap-2 rounded-2xl border text-xs" style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>
+                    📚 No courses found for this class program.
+                  </div>
+                ) : (
+                  classCourses.map((course) => (
+                    <CourseCard
+                      key={course.course_code}
+                      course={course}
+                      onSelect={setSelectedAttendanceCourse}
+                    />
+                  ))
+                )}
+              </motion.div>
+            ) : (
+              // Attendance Registry for selected Course
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.35 }}
+                className="overflow-hidden rounded-2xl border"
+                style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-subtle)" }}
+              >
+                <div className="px-5 py-3 border-b text-xs flex justify-between items-center" style={{ borderColor: "var(--border-subtle)", backgroundColor: "var(--bg-elevated)" }}>
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    Attendance Summary
+                  </span>
+                  <span className="font-bold" style={{ color: "var(--brand-500)" }}>
+                    Present: {coursePresentCount} / {courseStudentsWithAttendance.length}
+                  </span>
+                </div>
+                {courseStudentsWithAttendance.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                    <Users size={20} style={{ color: "var(--text-muted)", opacity: 0.5 }} />
+                    No students registered in this class.
+                  </div>
+                ) : (
+                  renderStudentTable(courseStudentsWithAttendance, false, false)
+                )}
+              </motion.div>
+            )}
           </div>
         </div>
       )}
@@ -1989,11 +2231,191 @@ export default function StudentsPage() {
         isDeleting={deletingClass}
       />
 
-      {/* Student Identification Panel */}
-      <IdentifyPanel
-        isOpen={showIdentifyPanel}
-        onClose={() => setShowIdentifyPanel(false)}
+      {/* View & Update Attendance Modal */}
+      <Modal
+        isOpen={attendanceEditStudent !== null}
+        onClose={() => setAttendanceEditStudent(null)}
+        title="Update Attendance Status"
+        subtitle="Manage class course attendance record"
+        maxWidth="max-w-md"
+      >
+        {attendanceEditStudent && (
+          <div className="p-6 space-y-6">
+            {/* Student card info */}
+            <div className="flex items-center gap-3 p-4 rounded-2xl border" style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-subtle)" }}>
+              <div
+                className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full text-base font-bold text-white"
+                style={{
+                  background: `linear-gradient(135deg, hsl(${(attendanceEditStudent.name.charCodeAt(0) * 17) % 360}deg 60% 55%), hsl(${(attendanceEditStudent.name.charCodeAt(0) * 17 + 40) % 360}deg 60% 45%))`,
+                }}
+              >
+                {attendanceEditStudent.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h4 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                  {attendanceEditStudent.name}
+                </h4>
+                <p className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
+                  {attendanceEditStudent.reg_number}
+                </p>
+              </div>
+            </div>
+
+            {/* Course info */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wider block" style={{ color: "var(--text-muted)" }}>
+                Selected Course
+              </span>
+              <p className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
+                {selectedAttendanceCourse?.course_name} <span className="font-mono text-xs text-muted-foreground">({selectedAttendanceCourse?.course_code})</span>
+              </p>
+            </div>
+
+            {/* Attendance selection cards */}
+            <div className="space-y-3">
+              <span className="text-[10px] font-semibold uppercase tracking-wider block" style={{ color: "var(--text-muted)" }}>
+                Attendance Status
+              </span>
+              <div className="grid grid-cols-3 gap-2">
+                {/* Present Card */}
+                <button
+                  type="button"
+                  onClick={() => setEditAttendanceStatus("Present")}
+                  className="flex flex-col items-center gap-2 rounded-2xl border p-3.5 transition-all text-center"
+                  style={{
+                    backgroundColor: editAttendanceStatus === "Present" 
+                      ? "color-mix(in srgb, var(--success-500, #10b981) 8%, var(--bg-surface))" 
+                      : "var(--bg-surface)",
+                    borderColor: editAttendanceStatus === "Present" 
+                      ? "var(--success-500, #10b981)" 
+                      : "var(--border-subtle)",
+                  }}
+                >
+                  <div 
+                    className="flex h-9 w-9 items-center justify-center rounded-xl"
+                    style={{
+                      backgroundColor: editAttendanceStatus === "Present"
+                        ? "var(--success-500, #10b981)"
+                        : "var(--bg-elevated)",
+                      color: editAttendanceStatus === "Present" ? "#fff" : "var(--text-muted)",
+                    }}
+                  >
+                    <CheckCircle2 size={18} />
+                  </div>
+                  <span className="text-xs font-bold" style={{ color: editAttendanceStatus === "Present" ? "var(--success-600, #059669)" : "var(--text-secondary)" }}>
+                    Present
+                  </span>
+                </button>
+
+                {/* Late Card */}
+                <button
+                  type="button"
+                  onClick={() => setEditAttendanceStatus("Late")}
+                  className="flex flex-col items-center gap-2 rounded-2xl border p-3.5 transition-all text-center"
+                  style={{
+                    backgroundColor: editAttendanceStatus === "Late" 
+                      ? "color-mix(in srgb, var(--warning-500, #f59e0b) 8%, var(--bg-surface))" 
+                      : "var(--bg-surface)",
+                    borderColor: editAttendanceStatus === "Late" 
+                      ? "var(--warning-500, #f59e0b)" 
+                      : "var(--border-subtle)",
+                  }}
+                >
+                  <div 
+                    className="flex h-9 w-9 items-center justify-center rounded-xl"
+                    style={{
+                      backgroundColor: editAttendanceStatus === "Late"
+                        ? "var(--warning-500, #f59e0b)"
+                        : "var(--bg-elevated)",
+                      color: editAttendanceStatus === "Late" ? "#fff" : "var(--text-muted)",
+                    }}
+                  >
+                    <AlertCircle size={18} />
+                  </div>
+                  <span className="text-xs font-bold" style={{ color: editAttendanceStatus === "Late" ? "var(--warning-600, #d97706)" : "var(--text-secondary)" }}>
+                    Late
+                  </span>
+                </button>
+
+                {/* Absent Card */}
+                <button
+                  type="button"
+                  onClick={() => setEditAttendanceStatus("Absent")}
+                  className="flex flex-col items-center gap-2 rounded-2xl border p-3.5 transition-all text-center"
+                  style={{
+                    backgroundColor: editAttendanceStatus === "Absent" 
+                      ? "color-mix(in srgb, var(--danger-500, #ef4444) 8%, var(--bg-surface))" 
+                      : "var(--bg-surface)",
+                    borderColor: editAttendanceStatus === "Absent" 
+                      ? "var(--danger-500, #ef4444)" 
+                      : "var(--border-subtle)",
+                  }}
+                >
+                  <div 
+                    className="flex h-9 w-9 items-center justify-center rounded-xl"
+                    style={{
+                      backgroundColor: editAttendanceStatus === "Absent"
+                        ? "var(--danger-500, #ef4444)"
+                        : "var(--bg-elevated)",
+                      color: editAttendanceStatus === "Absent" ? "#fff" : "var(--text-muted)",
+                    }}
+                  >
+                    <X size={18} />
+                  </div>
+                  <span className="text-xs font-bold" style={{ color: editAttendanceStatus === "Absent" ? "var(--danger-600, #dc2626)" : "var(--text-secondary)" }}>
+                    Absent
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-4 border-t" style={{ borderColor: "var(--border-subtle)" }}>
+              <button
+                type="button"
+                onClick={() => setAttendanceEditStudent(null)}
+                disabled={submittingAttendanceEdit}
+                className="cursor-pointer flex-1 rounded-xl border py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+                style={{
+                  borderColor: "var(--border-default)",
+                  color: "var(--text-secondary)",
+                  backgroundColor: "var(--bg-surface)",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSaveAttendanceEdit(attendanceEditStudent, editAttendanceStatus)}
+                disabled={submittingAttendanceEdit}
+                className="cursor-pointer flex-1 rounded-xl py-2.5 text-sm font-semibold text-white flex items-center justify-center gap-1.5"
+                style={{
+                  background: "linear-gradient(135deg, var(--brand-600), var(--brand-500))",
+                  boxShadow: "0 4px 12px color-mix(in srgb, var(--brand-500) 30%, transparent)",
+                }}
+              >
+                {submittingAttendanceEdit ? (
+                  <><RefreshCw size={14} className="animate-spin" /> Saving…</>
+                ) : (
+                  "Save Status"
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Delete Attendance Confirmation Modal */}
+      <DeleteAttendanceModal
+        isOpen={attendanceDeleteStudent !== null}
+        onClose={() => setAttendanceDeleteStudent(null)}
+        studentName={attendanceDeleteStudent?.name ?? ""}
+        courseName={selectedAttendanceCourse?.course_name ?? ""}
+        onConfirm={handleConfirmDeleteAttendance}
+        isDeleting={deletingAttendanceRecord}
       />
+
+
     </div>
   );
 }
