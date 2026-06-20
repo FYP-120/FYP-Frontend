@@ -19,6 +19,8 @@ import {
   Lock,
   AlertCircle,
   RefreshCw,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { ApiError } from "@/config/api";
@@ -167,6 +169,7 @@ function LoginCard() {
   const passId = useId();
 
   const [form, setForm] = useState({ username: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -271,29 +274,51 @@ function LoginCard() {
             >
               Password
             </label>
-            <input
-              id={passId}
-              type="password"
-              autoComplete="new-password"
-              placeholder="••••••••"
-              value={form.password}
-              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-              required
-              className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all duration-200"
-              style={{
-                backgroundColor: "var(--bg-elevated)",
-                borderColor: "var(--border-default)",
-                color: "var(--text-primary)",
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = "var(--brand-500)";
-                e.currentTarget.style.boxShadow = `0 0 0 3px color-mix(in srgb, var(--brand-500) 15%, transparent)`;
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = "var(--border-default)";
-                e.currentTarget.style.boxShadow = "none";
-              }}
-            />
+            <div className="relative">
+              <input
+                id={passId}
+                type={showPassword ? "text" : "password"}
+                autoComplete="new-password"
+                placeholder="••••••••"
+                value={form.password}
+                onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                required
+                className="w-full rounded-xl border pl-4 pr-11 py-3 text-sm outline-none transition-all duration-200"
+                style={{
+                  backgroundColor: "var(--bg-elevated)",
+                  borderColor: "var(--border-default)",
+                  color: "var(--text-primary)",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "var(--brand-500)";
+                  e.currentTarget.style.boxShadow = `0 0 0 3px color-mix(in srgb, var(--brand-500) 15%, transparent)`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "var(--border-default)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 cursor-pointer rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors focus:outline-none"
+                style={{ color: "var(--text-muted)" }}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={showPassword ? "eye-off" : "eye"}
+                    initial={{ opacity: 0, scale: 0.8, rotate: -15 }}
+                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                    exit={{ opacity: 0, scale: 0.8, rotate: 15 }}
+                    transition={{ duration: 0.15 }}
+                    className="flex items-center justify-center"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </motion.div>
+                </AnimatePresence>
+              </button>
+            </div>
           </div>
 
           {/* Error banner */}
