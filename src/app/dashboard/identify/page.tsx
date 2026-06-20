@@ -21,6 +21,7 @@ import { API_ENDPOINTS } from "@/config/api";
 import type { IdentifyResponse, Course, AttendanceListResponse } from "@/types/api";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { openPdfInNewTab } from "@/utils/exportViewer";
 
 interface IdentifyResult {
   name: string;
@@ -226,12 +227,12 @@ export default function IdentifyPage() {
         margin: { left: 14, right: 14 }
       });
 
-      // Save PDF File
+      // Open PDF in New Tab
       const dateStr = new Date().toISOString().split('T')[0];
       const filename = `attendance_report_${studentId}_${dateStr}.pdf`;
-      doc.save(filename);
+      openPdfInNewTab(doc, filename);
 
-      toast("✓ PDF report downloaded successfully", "success");
+      toast("✓ PDF report opened in a new tab", "success");
     } catch (err) {
       console.error(err);
       toast(err instanceof Error ? err.message : "Failed to download report", "error");
@@ -515,11 +516,11 @@ export default function IdentifyPage() {
                         }}
                       >
                         {downloadingReport ? (
-                          <><RefreshCw size={13} className="animate-spin" /> Generating Report...</>
+                          <><RefreshCw size={13} className="animate-spin" /> Opening...</>
                         ) : (
                           <>
                             <Download size={13} className="text-emerald-600 dark:text-emerald-500" />
-                            Download Attendance Report
+                            Show Attendance Report
                           </>
                         )}
                       </button>

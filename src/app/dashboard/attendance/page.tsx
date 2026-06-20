@@ -22,6 +22,8 @@ import { API_ENDPOINTS, apiRequest, ApiError, API_BASE_URL } from "@/config/api"
 import { getStoredToken } from "@/hooks/useAuth";
 import { useToast } from "@/components/ui/Toast";
 import type { AttendanceRecord, AttendanceStatus, Course } from "@/types/api";
+import * as XLSX from "xlsx";
+import { openExcelInNewTab } from "@/utils/exportViewer";
 
 const STATUS_CONFIG: Record<AttendanceStatus, { icon: React.ElementType; color: string; bg: string }> = {
   Present: { icon: CheckCircle, color: "var(--accent-500)", bg: "color-mix(in srgb, var(--accent-500) 10%, transparent)" },
@@ -72,20 +74,13 @@ export default function AttendancePage() {
   // ── Export State ──
   const [exporting, setExporting] = useState(false);
 
-  // Fetch available classes from backend camera UI page
+  // Fetch available classes from backend
   useEffect(() => {
     async function loadClasses() {
       try {
-        const res = await fetch(`${API_BASE_URL}/camera`, {
-          cache: "no-store",
-        });
-        const html = await res.text();
-        const match = html.match(/window\.AVAILABLE_CLASSES\s*=\s*(\[[\s\S]*?\])/);
-        if (match) {
-          const parsed = JSON.parse(match[1]);
-          const classNames = parsed.map((c: any) => c.class_name || c);
-          setClasses(classNames.sort());
-        }
+        const token = getStoredToken() ?? undefined;
+        const classNames = await apiRequest<string[]>(API_ENDPOINTS.classes.list, { token });
+        setClasses(classNames.sort());
       } catch (err) {
         console.error("Failed to load classes:", err);
       }
@@ -187,14 +182,14 @@ export default function AttendancePage() {
     setExporting(true);
     try {
       const token = getStoredToken() ?? "";
-      const headers: Record<string, string> = {};
+      const requestHeaders: Record<string, string> = {};
       if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
+        requestHeaders["Authorization"] = `Bearer ${token}`;
       }
       
       const res = await fetch(
         `${API_BASE_URL}/attendance/export?class=${encodeURIComponent(classFilter.trim())}&date=${encodeURIComponent(dateFilter)}`,
-        { headers }
+        { headers: requestHeaders }
       );
       
       if (!res.ok) {
@@ -203,19 +198,29 @@ export default function AttendancePage() {
       }
       
       const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `attendance_grid_${classFilter.trim()}_${dateFilter}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      const arrayBuffer = await blob.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: "array" });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const excelData = XLSX.utils.sheet_to_json<any>(worksheet, { header: 1 });
+
+      const headers = (excelData[0] || []) as string[];
+      const rows = excelData.slice(1) as any[][];
+
+      const filename = `attendance_grid_${classFilter.trim()}_${dateFilter}.xlsx`;
       
-      toast("✓ Excel sheet downloaded successfully", "success");
+      openExcelInNewTab(
+        blob,
+        filename,
+        `Attendance Grid Report - Class: ${classFilter.trim()} | Date: ${dateFilter}`,
+        headers,
+        rows
+      );
+      
+      toast("✓ Excel sheet opened in a new tab", "success");
     } catch (err) {
       console.error(err);
-      toast(err instanceof Error ? err.message : "Failed to export Excel sheet", "error");
+      toast(err instanceof Error ? err.message : "Failed to open Excel sheet preview", "error");
     } finally {
       setExporting(false);
     }
@@ -348,13 +353,13 @@ export default function AttendancePage() {
             }}
           >
             {exporting ? (
-              <><RefreshCw size={13} className="animate-spin" /> Exporting...</>
+              <><RefreshCw size={13} className="animate-spin" /> Opening...</>
             ) : (
               <>
                 <svg className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                Export Excel Grid
+                Show Excel Grid
               </>
             )}
           </button>

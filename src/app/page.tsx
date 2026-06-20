@@ -182,7 +182,7 @@ function LoginCard() {
     try {
       await login(form.username.trim(), form.password);
       setSuccess(true);
-      setTimeout(() => router.push("/dashboard"), 700);
+      router.push("/dashboard");
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.status === 401 ? "Invalid credentials. Please try again." : err.message);

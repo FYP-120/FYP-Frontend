@@ -100,22 +100,20 @@ export default function CameraPage() {
     setLoadingClasses(true);
     setErrorMsg(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/camera`, {
+      const token = localStorage.getItem("fras_access_token");
+      const res = await fetch(`${API_BASE_URL}/api/classes`, {
+        headers: token ? { "Authorization": `Bearer ${token}` } : {},
         signal: AbortSignal.timeout(6_000),
         cache: "no-store",
       });
-      const html = await res.text();
-      const match = html.match(/window\.AVAILABLE_CLASSES\s*=\s*(\[[\s\S]*?\])/);
-      if (match) {
-        const parsed = JSON.parse(match[1]);
-        const classNames = parsed.map((c: any) => c.class_name || c);
-        setClasses(classNames.sort());
-        if (classNames.length > 0) {
-          setSelectedClass(classNames[0]);
-          fetchCourses(classNames[0]);
-        }
-      } else {
-        setClasses([]);
+      if (!res.ok) {
+        throw new Error(`Failed to load classes: ${res.status}`);
+      }
+      const classNames = await res.json() as string[];
+      setClasses(classNames.sort());
+      if (classNames.length > 0) {
+        setSelectedClass(classNames[0]);
+        fetchCourses(classNames[0]);
       }
     } catch (err) {
       console.error("Failed to fetch classes:", err);

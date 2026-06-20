@@ -29,16 +29,17 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { status: serverStatus, retry } = useServerStatus();
   const [mounted, setMounted] = useState(false);
+  const [isAuth, setIsAuth] = useState(false);
 
   // ── Auth guard (client-side) ─────────────────────────────────────────────
   useEffect(() => {
+    const authed = isAuthenticated();
+    setIsAuth(authed);
     setMounted(true);
-    if (!isAuthenticated()) {
+    if (!authed) {
       router.replace("/");
     }
   }, [router]);
-
-  const isAuth = typeof window !== "undefined" ? isAuthenticated() : false;
 
   if (!mounted || !isAuth) return null;
 

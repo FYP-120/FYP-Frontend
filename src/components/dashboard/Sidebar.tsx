@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -46,10 +47,8 @@ function NavItem({
 }) {
   return (
     <Link href={href} onClick={onClick}>
-      <motion.div
-        whileHover={{ x: 3 }}
-        whileTap={{ scale: 0.97 }}
-        className="cursor-pointer relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-150"
+      <div
+        className="cursor-pointer relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 hover:translate-x-0.5 active:scale-[0.98]"
         style={{
           backgroundColor: active
             ? "color-mix(in srgb, var(--brand-500) 12%, transparent)"
@@ -71,17 +70,15 @@ function NavItem({
         }}
       >
         {/* Active left accent bar */}
-        {active && (
-          <motion.div
-            layoutId="nav-active-bar"
-            className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full"
-            style={{ backgroundColor: "var(--brand-500)" }}
-            transition={{ type: "spring", stiffness: 380, damping: 30 }}
-          />
-        )}
+        <div
+          className={`absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full transition-all duration-150 ${
+            active ? "opacity-100 scale-y-100" : "opacity-0 scale-y-0"
+          }`}
+          style={{ backgroundColor: "var(--brand-500)" }}
+        />
         <Icon size={17} />
         <span>{label}</span>
-      </motion.div>
+      </div>
     </Link>
   );
 }
@@ -94,17 +91,16 @@ interface SidebarProps {
   onClose: () => void;
 }
 
-export function Sidebar({ open, onClose }: SidebarProps) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const { logout } = useAuth();
-
-  function handleLogout() {
-    logout();
-    router.push("/");
-  }
-
-  const SidebarContent = () => (
+function SidebarContent({
+  pathname,
+  onClose,
+  handleLogout,
+}: {
+  pathname: string;
+  onClose: () => void;
+  handleLogout: () => void;
+}) {
+  return (
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div
@@ -207,6 +203,23 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       </div>
     </div>
   );
+}
+
+export function Sidebar({ open, onClose }: SidebarProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { logout } = useAuth();
+
+  useEffect(() => {
+    NAV_ITEMS.forEach((item) => {
+      router.prefetch(item.href);
+    });
+  }, [router]);
+
+  function handleLogout() {
+    logout();
+    router.push("/");
+  }
 
   return (
     <>
@@ -218,7 +231,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           borderRight: "1px solid var(--border-subtle)",
         }}
       >
-        <SidebarContent />
+        <SidebarContent
+          pathname={pathname}
+          onClose={onClose}
+          handleLogout={handleLogout}
+        />
       </aside>
 
       {/* Mobile sidebar overlay */}
@@ -247,7 +264,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 borderRight: "1px solid var(--border-subtle)",
               }}
             >
-              <SidebarContent />
+              <SidebarContent
+                pathname={pathname}
+                onClose={onClose}
+                handleLogout={handleLogout}
+              />
             </motion.aside>
           </>
         )}

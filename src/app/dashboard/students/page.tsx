@@ -16,6 +16,7 @@ import { useApiClient } from "@/hooks/useApiClient";
 import { getStoredToken } from "@/hooks/useAuth";
 import { API_ENDPOINTS, API_BASE_URL } from "@/config/api";
 import type { Student, StudentsListResponse, StudentRegisterResponse, AttendanceRecord, AttendanceListResponse, Course } from "@/types/api";
+import { openPdfInNewTab, openExcelInNewTab } from "@/utils/exportViewer";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Animation helpers
@@ -807,32 +808,18 @@ export default function StudentsPage() {
 
   // ─────────────────────────────────────────────────────────────────────────
   // Fetch available classes
-  // Strategy: parse window.AVAILABLE_CLASSES injected by GET /camera HTML
-  // This is the backend's native mechanism for exposing class collections.
   // ─────────────────────────────────────────────────────────────────────────
   const fetchClasses = useCallback(async () => {
     setLoadingClasses(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/camera`, {
-        signal: AbortSignal.timeout(6_000),
-        cache: "no-store",
-      });
-      const html = await res.text();
-      // Extract: window.AVAILABLE_CLASSES = ["BSCS-8A", "BSCS-8B", ...];
-      const match = html.match(/window\.AVAILABLE_CLASSES\s*=\s*(\[[\s\S]*?\])/);
-      if (match) {
-        const parsed = JSON.parse(match[1]);
-        const classNames = parsed.map((c: any) => c.class_name || c);
-        setClasses(classNames.sort());
-      } else {
-        setClasses([]);
-      }
+      const classNames = await request<string[]>(API_ENDPOINTS.classes.list);
+      setClasses(classNames.sort());
     } catch {
       setClasses([]);
     } finally {
       setLoadingClasses(false);
     }
-  }, []);
+  }, [request]);
 
   useEffect(() => { fetchClasses(); }, [fetchClasses]);
 
@@ -1312,12 +1299,12 @@ export default function StudentsPage() {
         currentY = (doc as any).lastAutoTable.finalY + 12;
       });
 
-      // Save PDF File
+      // Open PDF in New Tab
       const dateStr = new Date().toISOString().split('T')[0];
       const filename = `attendance_report_${selectedClass}_${dateStr}.pdf`;
-      doc.save(filename);
+      openPdfInNewTab(doc, filename);
 
-      toast("✓ PDF report downloaded successfully", "success");
+      toast("✓ PDF report opened in a new tab", "success");
     } catch (err) {
       console.error(err);
       toast(err instanceof Error ? err.message : "Failed to download report", "error");
@@ -1358,13 +1345,31 @@ export default function StudentsPage() {
         { wch: 15 }
       ];
 
+      const wbout = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+      const excelBlob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+
       const dateStr = new Date().toISOString().split('T')[0];
       const filename = `attendance_${selectedClass}_${selectedAttendanceCourse.course_code}_${dateStr}.xlsx`;
-      XLSX.writeFile(workbook, filename);
+      
+      const headers = ["Registration Number", "Name", "Status", "Date"];
+      const rows = excelData.map(d => [
+        d["Registration Number"] || "",
+        d["Name"] || "",
+        d["Status"] || "",
+        d["Date"] || ""
+      ]);
 
-      toast("✓ Course attendance report downloaded successfully", "success");
+      openExcelInNewTab(
+        excelBlob,
+        filename,
+        `Course Attendance Report - Class: ${selectedClass} | Subject: ${selectedAttendanceCourse.course_name} (${selectedAttendanceCourse.course_code})`,
+        headers,
+        rows
+      );
+
+      toast("✓ Course attendance report opened in a new tab", "success");
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to download course report", "error");
+      toast(err instanceof Error ? err.message : "Failed to generate course report", "error");
     }
   }, [selectedClass, selectedAttendanceCourse, filtered, getStudentCourseRecord, attendanceRecords, toast]);
 
@@ -1977,7 +1982,7 @@ export default function StudentsPage() {
             ) : (
               <Download size={13} />
             )}
-            Download Attendance Report
+            Show Attendance Report
           </button>
 
 
@@ -2122,7 +2127,7 @@ export default function StudentsPage() {
                     style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)", backgroundColor: "var(--bg-surface)" }}
                   >
                     <Download size={13} />
-                    Download Attendance Excel
+                    Show Attendance Excel
                   </button>
                   <button
                     onClick={() => setSelectedAttendanceCourse(null)}
