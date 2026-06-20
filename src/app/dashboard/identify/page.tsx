@@ -242,36 +242,36 @@ export default function IdentifyPage() {
   }
 
   return (
-    <div className="p-5 sm:p-7 space-y-6 max-w-4xl mx-auto">
+    <div className="p-6 sm:p-8 space-y-8 max-w-6xl mx-auto font-sans tracking-tight">
       {/* Header */}
       <motion.div
-        initial={{ opacity: 0, y: 14 }}
+        initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <h1 className="text-xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-zinc-50">
           Identify Student from Photo
         </h1>
-        <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+        <p className="mt-1 text-sm text-slate-600 dark:text-zinc-300">
           Upload a student picture to compare it against database embeddings and extract metadata.
         </p>
       </motion.div>
 
       {/* Main Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10 items-start">
         {/* Left: Upload card */}
         <motion.div
-          initial={{ opacity: 0, y: 14 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.05 }}
-          className="rounded-3xl border p-6 space-y-5 shadow-sm"
-          style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-subtle)" }}
+          className="rounded-2xl p-6 lg:p-8 space-y-6 shadow-[0_8px_30px_rgb(0,0,0,0.02)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-[var(--border-subtle)]/70"
+          style={{ backgroundColor: "var(--bg-surface)" }}
         >
           <div className="space-y-1">
-            <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-zinc-50">
               Upload Image
             </h2>
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            <p className="text-xs font-medium text-slate-600 dark:text-zinc-400">
               Supported formats: JPG, JPEG, PNG. Max size: 5MB.
             </p>
           </div>
@@ -283,47 +283,47 @@ export default function IdentifyPage() {
             onDragLeave={handleDrag}
             onDrop={handleDrop}
             onClick={() => fileRef.current?.click()}
-            className="cursor-pointer border-2 border-dashed rounded-2xl flex flex-col items-center justify-center p-6 min-h-[200px] relative transition-all group overflow-hidden"
+            className="cursor-pointer border border-slate-200 dark:border-zinc-800 rounded-xl flex flex-col items-center justify-center p-8 min-h-[220px] relative transition-all duration-300 group overflow-hidden bg-slate-50/50 dark:bg-zinc-900/30 hover:bg-slate-50 dark:hover:bg-zinc-900/60 shadow-[inset_0_2px_4px_rgba(0,0,0,0.01)]"
             style={{
               borderColor: dragActive
                 ? "var(--brand-500)"
-                : "color-mix(in srgb, var(--border-default) 80%, transparent)",
-              backgroundColor: dragActive
-                ? "color-mix(in srgb, var(--brand-500) 6%, transparent)"
-                : "var(--bg-elevated)",
+                : "var(--border-subtle)",
             }}
           >
             {preview ? (
-              <div className="absolute inset-0 flex items-center justify-center bg-black">
+              <div className="absolute inset-0 w-full h-full overflow-hidden rounded-xl bg-slate-100 dark:bg-zinc-900">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={preview} alt="Upload Preview" className="w-full h-full object-contain" />
+                <img src={preview} alt="Upload Preview" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20" />
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleFile(null);
                   }}
-                  className="cursor-pointer absolute top-3 right-3 p-1.5 rounded-full bg-black/60 text-white hover:bg-black/80 transition"
+                  className="cursor-pointer absolute top-3 right-3 p-2 rounded-lg bg-black/50 hover:bg-black/75 backdrop-blur-md text-white transition-all border border-white/10"
+                  aria-label="Remove image"
                 >
                   <X size={14} />
                 </button>
               </div>
             ) : (
-              <div className="text-center space-y-2 group-hover:scale-[1.02] transition-transform">
+              <div className="text-center space-y-3 group-hover:scale-[1.01] transition-transform duration-300">
                 <div
-                  className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl"
+                  className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-300"
                   style={{
-                    backgroundColor: "color-mix(in srgb, var(--brand-500) 12%, transparent)",
+                    backgroundColor: "color-mix(in srgb, var(--brand-500) 8%, transparent)",
                     color: "var(--brand-500)",
+                    boxShadow: "0 0 20px 0 color-mix(in srgb, var(--brand-500) 6%, transparent)",
                   }}
                 >
-                  <Upload size={18} />
+                  <Upload size={18} className="stroke-[1.75]" />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+                  <p className="text-xs font-bold text-slate-900 dark:text-zinc-50">
                     Click to upload or drag & drop
                   </p>
-                  <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                  <p className="text-[10px] font-bold text-slate-500 dark:text-zinc-400">
                     Ensure the student's face is clearly visible
                   </p>
                 </div>
@@ -348,9 +348,8 @@ export default function IdentifyPage() {
               type="button"
               onClick={() => handleFile(null)}
               disabled={!file || identifying}
-              className="cursor-pointer flex-1 rounded-xl border py-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="cursor-pointer flex-1 rounded-xl border border-slate-200 dark:border-zinc-800 py-3 text-xs font-semibold transition-all duration-200 hover:bg-slate-50 dark:hover:bg-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{
-                borderColor: "var(--border-default)",
                 color: "var(--text-secondary)",
                 backgroundColor: "var(--bg-surface)",
               }}
@@ -361,7 +360,7 @@ export default function IdentifyPage() {
               type="button"
               disabled={!file || identifying}
               onClick={handleIdentify}
-              className="cursor-pointer flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className="cursor-pointer flex-1 flex items-center justify-center gap-1.5 rounded-xl py-3 text-xs font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:opacity-[0.96] active:scale-[0.98] shadow-sm hover:shadow"
               style={{
                 background: "linear-gradient(135deg, var(--brand-600), var(--brand-500))",
               }}
@@ -384,7 +383,7 @@ export default function IdentifyPage() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="flex items-start gap-2.5 rounded-2xl border p-4 text-xs"
+                className="flex items-start gap-2.5 rounded-xl border p-4 text-xs"
                 style={{
                   backgroundColor: "color-mix(in srgb, var(--danger-500) 8%, transparent)",
                   borderColor: "color-mix(in srgb, var(--danger-500) 25%, transparent)",
@@ -394,7 +393,7 @@ export default function IdentifyPage() {
                 <AlertCircle size={15} className="mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="font-semibold">Match Failed</p>
-                  <p className="mt-0.5" style={{ color: "var(--text-muted)" }}>{error}</p>
+                  <p className="mt-0.5 text-rose-600/90 dark:text-rose-400">{error}</p>
                 </div>
               </motion.div>
             )}
@@ -402,18 +401,16 @@ export default function IdentifyPage() {
 
           {/* Profile Overview Card */}
           <motion.div
-            initial={{ opacity: 0, y: 14 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.1 }}
-            className="rounded-3xl border p-6 space-y-6 min-h-[300px] flex flex-col"
+            className="rounded-2xl p-6 lg:p-8 space-y-6 min-h-[300px] flex flex-col shadow-[0_8px_30px_rgb(0,0,0,0.02)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-[var(--border-subtle)]/70"
             style={{
               backgroundColor: "var(--bg-surface)",
-              borderColor: "var(--border-subtle)",
-              boxShadow: "var(--shadow-sm)",
             }}
           >
-            <div className="border-b pb-3" style={{ borderColor: "var(--border-subtle)" }}>
-              <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+            <div className="border-b border-slate-100 dark:border-zinc-800/65 pb-3">
+              <h3 className="text-sm font-bold tracking-tight text-slate-900 dark:text-zinc-50">
                 Analysis & Match Results
               </h3>
             </div>
@@ -429,73 +426,74 @@ export default function IdentifyPage() {
                     className="space-y-6"
                   >
                     {/* Avatar header */}
-                    <div className="flex flex-col items-center gap-2 text-center">
+                    <div className="flex flex-col items-center gap-3 text-center">
                       <div
-                        className="flex h-16 w-16 items-center justify-center rounded-full text-xl font-bold text-white relative shadow-sm"
+                        className="flex h-20 w-20 items-center justify-center rounded-full text-2xl font-bold text-white relative shadow-md transition-transform duration-300 hover:scale-105 border-4 border-slate-50 dark:border-zinc-800"
                         style={{
-                          background: `linear-gradient(135deg, hsl(${(result.name.charCodeAt(0) * 17) % 360}deg 60% 55%), hsl(${(result.name.charCodeAt(0) * 17 + 40) % 360}deg 60% 45%))`,
+                          background: `linear-gradient(135deg, hsl(${(result.name.charCodeAt(0) * 17) % 360}deg 65% 55%), hsl(${(result.name.charCodeAt(0) * 17 + 40) % 360}deg 65% 45%))`,
                         }}
                       >
                         {result.name.charAt(0).toUpperCase()}
                         <div
-                          className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border bg-white dark:bg-zinc-900 shadow"
-                          style={{ borderColor: "var(--border-subtle)" }}
+                          className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border border-slate-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm text-emerald-500"
                         >
-                          <CheckCircle2 size={12} className="text-emerald-500" />
+                          <CheckCircle2 size={13} className="fill-emerald-500/10" />
                         </div>
                       </div>
-                      <h4 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>
-                        {result.name}
-                      </h4>
-                      <span className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold font-mono" style={{ backgroundColor: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
-                        ID: {result.registration_number}
-                      </span>
+                      <div className="space-y-1">
+                        <h4 className="text-lg font-bold text-slate-900 dark:text-zinc-50">
+                          {result.name}
+                        </h4>
+                        <span className="inline-block text-[10px] px-3 py-1 rounded-full font-bold font-mono bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 tracking-wider">
+                          ID: {result.registration_number}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Meta Grid */}
-                    <div className="grid grid-cols-1 gap-3 rounded-2xl border p-4" style={{ backgroundColor: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}>
+                    <div className="grid grid-cols-1 gap-3.5 bg-slate-50/50 dark:bg-zinc-900/60 border border-slate-200/60 dark:border-zinc-800/60 p-4 rounded-xl">
                       <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-zinc-200 dark:bg-zinc-800 text-zinc-500">
-                          <User size={13} />
+                        <div className="p-2 rounded-lg bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400">
+                          <User size={14} className="stroke-[2]" />
                         </div>
                         <div>
-                          <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>Full Name</p>
-                          <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>{result.name}</p>
+                          <p className="text-[10px] text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider">Full Name</p>
+                          <p className="text-sm font-semibold text-slate-900 dark:text-zinc-50">{result.name}</p>
                         </div>
                       </div>
 
                       {result.registration_number && (
                         <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-zinc-200 dark:bg-zinc-800 text-zinc-500">
-                            <Hash size={13} />
+                          <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">
+                            <Hash size={14} className="stroke-[2]" />
                           </div>
                           <div>
-                            <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>Registration Number</p>
-                            <p className="text-xs font-semibold font-mono" style={{ color: "var(--text-primary)" }}>{result.registration_number}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider">Registration Number</p>
+                            <p className="text-sm font-semibold font-mono text-slate-900 dark:text-zinc-50">{result.registration_number}</p>
                           </div>
                         </div>
                       )}
 
                       {result.class_details && (
                         <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-zinc-200 dark:bg-zinc-800 text-zinc-500">
-                            <School size={13} />
+                          <div className="p-2 rounded-lg bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400">
+                             <School size={14} className="stroke-[2]" />
                           </div>
                           <div>
-                            <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>Assigned Class Collection</p>
-                            <p className="text-xs font-semibold uppercase font-mono" style={{ color: "var(--text-primary)" }}>{result.class_details}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider">Assigned Class Collection</p>
+                            <p className="text-sm font-semibold uppercase font-mono text-slate-900 dark:text-zinc-50">{result.class_details}</p>
                           </div>
                         </div>
                       )}
 
                       {result.confidence != null && (
                         <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-zinc-200 dark:bg-zinc-800 text-zinc-500">
-                            <Sparkles size={13} />
+                          <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400">
+                            <Sparkles size={14} className="stroke-[2]" />
                           </div>
                           <div>
-                            <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>Recognition Confidence</p>
-                            <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>{Math.round(result.confidence * 100)}% Match</p>
+                            <p className="text-[10px] text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider">Recognition Confidence</p>
+                            <p className="text-sm font-semibold text-slate-900 dark:text-zinc-50">{Math.round(result.confidence * 100)}% Match</p>
                           </div>
                         </div>
                       )}
@@ -507,12 +505,10 @@ export default function IdentifyPage() {
                         type="button"
                         disabled={downloadingReport}
                         onClick={handleDownloadStudentReport}
-                        className="w-full cursor-pointer flex items-center justify-center gap-2 rounded-xl border py-2.5 text-xs font-semibold shadow-sm transition-all hover:bg-zinc-50 dark:hover:bg-zinc-900 disabled:opacity-50"
+                        className="w-full cursor-pointer flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-zinc-800 py-3 text-xs font-semibold shadow-sm transition-all duration-200 hover:bg-slate-50 dark:hover:bg-zinc-900 disabled:opacity-50"
                         style={{
-                          borderColor: "var(--border-default)",
                           color: "var(--text-primary)",
                           backgroundColor: "var(--bg-surface)",
-                          cursor: "pointer"
                         }}
                       >
                         {downloadingReport ? (
@@ -529,17 +525,23 @@ export default function IdentifyPage() {
                 ) : (
                   <motion.div
                     key="placeholder"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="text-center py-10 space-y-3"
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    className="text-center py-12 space-y-4 flex flex-col items-center justify-center"
                   >
-                    <div className="text-3xl">🤖</div>
+                    {/* Sleek abstract scanning wireframe */}
+                    <div className="relative flex items-center justify-center w-16 h-16 rounded-full border border-dashed border-indigo-500/25 bg-indigo-500/[0.02] dark:bg-indigo-400/[0.01]">
+                      <div className="absolute inset-2 rounded-full border border-dashed border-indigo-500/40 animate-[spin_12s_linear_infinite]" />
+                      <div className="absolute inset-4 rounded-full bg-indigo-500/5 dark:bg-indigo-400/5 flex items-center justify-center" />
+                      <ScanFace size={22} className="text-indigo-500/60 dark:text-indigo-400/60 relative z-10 stroke-[1.5]" />
+                    </div>
+
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+                      <p className="text-xs font-bold tracking-tight text-slate-800 dark:text-zinc-200">
                         No Match Results Ready
                       </p>
-                      <p className="text-[10px] max-w-[200px] mx-auto" style={{ color: "var(--text-muted)" }}>
+                      <p className="text-[10px] max-w-[220px] mx-auto leading-relaxed text-slate-600 dark:text-zinc-400 font-medium">
                         Pick a student photo and click <strong>Run Recognition</strong> to match faces.
                       </p>
                     </div>

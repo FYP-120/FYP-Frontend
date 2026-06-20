@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+
 /* =========================================================
    DESIGN TOKENS — CSS Custom Properties
    All colours reference these tokens so switching themes
@@ -42,8 +45,8 @@
 
   /* --- Text --- */
   --text-primary:   #0f172a;
-  --text-secondary: #475569;
-  --text-muted:     #94a3b8;
+  --text-secondary: #334155;
+  --text-muted:     #64748b;
   --text-inverted:  #f8fafc;
 
   /* --- Border --- */
@@ -82,8 +85,8 @@
   --bg-muted:     #3f3f46;
 
   --text-primary:   #fafafa;
-  --text-secondary: #a1a1aa;
-  --text-muted:     #71717a;
+  --text-secondary: #d4d4d8;
+  --text-muted:     #a1a1aa;
   --text-inverted:  #09090b;
 
   --border-subtle:  #27272a;
